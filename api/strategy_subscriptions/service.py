@@ -2,7 +2,7 @@ from sqlalchemy import select
 
 from api.commons import enums
 from api.commons.schemas import ResponseSchema
-from api.commons.utils import model_to_dict, update_dict_from_schema
+from api.commons.utils import model_list_to_dict, model_to_dict, update_dict_from_schema
 from api.data import database, models
 from api.strategy_subscriptions.schemas import (
     StrategySubscriptionCreateSchema,
@@ -23,6 +23,36 @@ async def add_strategy_subscription_data(subscription_data: StrategySubscription
             status=enums.ResponseStatus.SUCCESS,
             data=model_to_dict(new_subscription),
             message="Strategy subscription created",
+        )
+
+
+async def get_strategy_subscription_data(subscription_id: int):
+    async with database.DbAsyncSession() as db:
+        result = await db.execute(
+            select(models.StrategySubscription).where(
+                models.StrategySubscription.id == subscription_id
+            )
+        )
+        subscription = result.scalars().one_or_none()
+        if not subscription:
+            return ResponseSchema(
+                status=enums.ResponseStatus.ERROR, message="Strategy subscription not found"
+            )
+        return ResponseSchema(
+            status=enums.ResponseStatus.SUCCESS,
+            data=model_to_dict(subscription),
+            message="Strategy subscription fetched",
+        )
+
+
+async def list_strategy_subscriptions_data():
+    async with database.DbAsyncSession() as db:
+        result = await db.execute(select(models.StrategySubscription))
+        subscriptions = result.scalars().all()
+        return ResponseSchema(
+            status=enums.ResponseStatus.SUCCESS,
+            data=model_list_to_dict(subscriptions),
+            message="Strategy subscriptions fetched",
         )
 
 

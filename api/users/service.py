@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from api.commons import enums
 from api.commons.schemas import ResponseSchema
-from api.commons.utils import model_to_dict, update_dict_from_schema
+from api.commons.utils import model_list_to_dict, model_to_dict, update_dict_from_schema
 from api.data import database
 from api.data import models
 from api.users.schemas import UserCreateSchema, UserUpdateSchema
@@ -23,6 +23,30 @@ async def add_user_data(user_data: UserCreateSchema):
             status=enums.ResponseStatus.SUCCESS,
             data=model_to_dict(new_user),
             message="User registered",
+        )
+
+
+async def get_user_data(user_id: int):
+    async with database.DbAsyncSession() as db:
+        result = await db.execute(select(models.User).where(models.User.id == user_id))
+        user = result.scalars().one_or_none()
+        if not user:
+            return ResponseSchema(status=enums.ResponseStatus.ERROR, message="User not found")
+        return ResponseSchema(
+            status=enums.ResponseStatus.SUCCESS,
+            data=model_to_dict(user),
+            message="User fetched",
+        )
+
+
+async def list_users_data():
+    async with database.DbAsyncSession() as db:
+        result = await db.execute(select(models.User))
+        users = result.scalars().all()
+        return ResponseSchema(
+            status=enums.ResponseStatus.SUCCESS,
+            data=model_list_to_dict(users),
+            message="Users fetched",
         )
 
 

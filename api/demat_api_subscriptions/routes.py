@@ -6,6 +6,22 @@ from api.demat_api_subscriptions import schemas, service
 router = APIRouter(prefix="/demat-api-subscriptions", tags=["Demat API Subscriptions"])
 
 
+@router.get("/", response_model=ResponseSchema)
+async def list_demat_api_subscriptions():
+    try:
+        return await service.list_demat_api_subscriptions_data()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/{subscription_id}", response_model=ResponseSchema)
+async def get_demat_api_subscription(subscription_id: int):
+    try:
+        return await service.get_demat_api_subscription_data(subscription_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.post("/", response_model=ResponseSchema)
 async def create_demat_api_subscription(
     subscription_data: schemas.DematApiSubscriptionCreateSchema,

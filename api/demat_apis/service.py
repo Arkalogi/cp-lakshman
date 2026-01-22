@@ -2,7 +2,7 @@ from sqlalchemy import select
 
 from api.commons import enums
 from api.commons.schemas import ResponseSchema
-from api.commons.utils import model_to_dict, update_dict_from_schema
+from api.commons.utils import model_list_to_dict, model_to_dict, update_dict_from_schema
 from api.data import database, models
 from api.demat_apis.schemas import DematApiCreateSchema, DematApiUpdateSchema
 
@@ -20,6 +20,30 @@ async def add_demat_api_data(api_data: DematApiCreateSchema):
             status=enums.ResponseStatus.SUCCESS,
             data=model_to_dict(new_api),
             message="Demat API created",
+        )
+
+
+async def get_demat_api_data(api_id: int):
+    async with database.DbAsyncSession() as db:
+        result = await db.execute(select(models.DematApi).where(models.DematApi.id == api_id))
+        demat_api = result.scalars().one_or_none()
+        if not demat_api:
+            return ResponseSchema(status=enums.ResponseStatus.ERROR, message="Demat API not found")
+        return ResponseSchema(
+            status=enums.ResponseStatus.SUCCESS,
+            data=model_to_dict(demat_api),
+            message="Demat API fetched",
+        )
+
+
+async def list_demat_apis_data():
+    async with database.DbAsyncSession() as db:
+        result = await db.execute(select(models.DematApi))
+        demat_apis = result.scalars().all()
+        return ResponseSchema(
+            status=enums.ResponseStatus.SUCCESS,
+            data=model_list_to_dict(demat_apis),
+            message="Demat APIs fetched",
         )
 
 

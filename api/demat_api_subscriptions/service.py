@@ -2,7 +2,7 @@ from sqlalchemy import select
 
 from api.commons import enums
 from api.commons.schemas import ResponseSchema
-from api.commons.utils import model_to_dict, update_dict_from_schema
+from api.commons.utils import model_list_to_dict, model_to_dict, update_dict_from_schema
 from api.data import database, models
 from api.demat_api_subscriptions.schemas import (
     DematApiSubscriptionCreateSchema,
@@ -23,6 +23,36 @@ async def add_demat_api_subscription_data(subscription_data: DematApiSubscriptio
             status=enums.ResponseStatus.SUCCESS,
             data=model_to_dict(new_subscription),
             message="Demat API subscription created",
+        )
+
+
+async def get_demat_api_subscription_data(subscription_id: int):
+    async with database.DbAsyncSession() as db:
+        result = await db.execute(
+            select(models.DematApiSubscription).where(
+                models.DematApiSubscription.id == subscription_id
+            )
+        )
+        subscription = result.scalars().one_or_none()
+        if not subscription:
+            return ResponseSchema(
+                status=enums.ResponseStatus.ERROR, message="Demat API subscription not found"
+            )
+        return ResponseSchema(
+            status=enums.ResponseStatus.SUCCESS,
+            data=model_to_dict(subscription),
+            message="Demat API subscription fetched",
+        )
+
+
+async def list_demat_api_subscriptions_data():
+    async with database.DbAsyncSession() as db:
+        result = await db.execute(select(models.DematApiSubscription))
+        subscriptions = result.scalars().all()
+        return ResponseSchema(
+            status=enums.ResponseStatus.SUCCESS,
+            data=model_list_to_dict(subscriptions),
+            message="Demat API subscriptions fetched",
         )
 
 

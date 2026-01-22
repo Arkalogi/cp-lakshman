@@ -6,6 +6,22 @@ from api.strategies import schemas, service
 router = APIRouter(prefix="/strategies", tags=["Strategies"])
 
 
+@router.get("/", response_model=ResponseSchema)
+async def list_strategies():
+    try:
+        return await service.list_strategies_data()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/{strategy_id}", response_model=ResponseSchema)
+async def get_strategy(strategy_id: int):
+    try:
+        return await service.get_strategy_data(strategy_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.post("/", response_model=ResponseSchema)
 async def create_strategy(strategy_data: schemas.StrategyCreateSchema):
     try:
