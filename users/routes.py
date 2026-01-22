@@ -1,13 +1,30 @@
 from fastapi import APIRouter, HTTPException
-from api.users import schemas
+
+from api.commons.schemas import ResponseSchema
+from api.users import schemas, service
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
-@router.get("/", response_model=schemas.ResponseSchema)
-async def register_user(user_data: schemas.UserRegisterSchema):
+@router.post("/", response_model=ResponseSchema)
+async def register_user(user_data: schemas.UserCreateSchema):
     try:
-        response = await get_user_data(current_user)
-        return response
+        return await service.add_user_data(user_data)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.put("/{user_id}", response_model=ResponseSchema)
+async def modify_user(user_id: int, user_data: schemas.UserUpdateSchema):
+    try:
+        return await service.update_user_data(user_id, user_data)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/{user_id}", response_model=ResponseSchema)
+async def delete_user(user_id: int):
+    try:
+        return await service.remove_user_data(user_id)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

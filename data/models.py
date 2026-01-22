@@ -29,13 +29,11 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    apis = relationship(
-        "Subscription",
-        back_populates="subscriber",
-        foreign_keys="Subscription.subscriber_id",
+    demat_apis = relationship(
+        "DematApi", back_populates="user", foreign_keys="DematApi.user_id"
     )
     strategies = relationship(
-        "Strategy", back_populates="target", foreign_keys="Subscription.target_id"
+        "Strategy", back_populates="user", foreign_keys="Strategy.user_id"
     )
 
 
@@ -67,6 +65,9 @@ class DematApi(Base):
 
     id = Column(Integer, primary_key=True)
     config = Column(Text)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
+
+    user = relationship("User", back_populates="demat_apis", foreign_keys=[user_id])
 
     subscriptions = relationship(
         "DematApiSubscription",
