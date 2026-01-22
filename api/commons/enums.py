@@ -4,3 +4,12 @@ class ResponseStatus(Enum):
     SUCCESS = "success"
     ERROR = "error"
     
+
+class ApiProvider(Enum):
+    KITE = "kite"
+    SHOONYA = "shoonya"
+
+
+class DematProvider(Enum):
+    ZERODHA = "zerodha"
+    FINVASIA = "finvasia"

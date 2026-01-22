@@ -3,6 +3,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    JSON,
     Boolean,
     DateTime,
     ForeignKey,
@@ -43,7 +44,7 @@ class Strategy(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(50), unique=True)
     description = Column(Text)
-    config = Column(Text)
+    config = Column(JSON)
 
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
     user = relationship("User", back_populates="strategies", foreign_keys=[user_id])
@@ -64,7 +65,7 @@ class DematApi(Base):
     __tablename__ = "demat_apis"
 
     id = Column(Integer, primary_key=True)
-    config = Column(Text)
+    config = Column(JSON)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
 
     user = relationship("User", back_populates="demat_apis", foreign_keys=[user_id])

@@ -9,8 +9,11 @@ from api.demat_apis.schemas import DematApiCreateSchema, DematApiUpdateSchema
 
 async def add_demat_api_data(api_data: DematApiCreateSchema):
     async with database.DbAsyncSession() as db:
+        config = api_data.config
+        if hasattr(config, "model_dump"):
+            config = config.model_dump()
         new_api = models.DematApi(
-            config=api_data.config,
+            config=config,
             user_id=api_data.user_id,
         )
         db.add(new_api)
