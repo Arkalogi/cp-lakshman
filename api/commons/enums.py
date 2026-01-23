@@ -6,6 +6,7 @@ class ResponseStatus(Enum):
     
 
 class ApiProvider(Enum):
+    UPSTOX = "upstox"
     KITE = "kite"
     SHOONYA = "shoonya"
 
