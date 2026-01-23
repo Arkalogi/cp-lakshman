@@ -3,7 +3,7 @@ import pyotp
 import base64
 import websocket
 import logging
-from config import Config
+from api.config import Config
 from urllib.parse import urlencode, urlparse, parse_qs
 
 logger = logging.getLogger(__name__)

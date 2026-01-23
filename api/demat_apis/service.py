@@ -11,7 +11,7 @@ async def add_demat_api_data(api_data: DematApiCreateSchema):
     async with database.DbAsyncSession() as db:
         config = api_data.config
         if hasattr(config, "model_dump"):
-            config = config.model_dump()
+            config = config.model_dump(mode="json")
         new_api = models.DematApi(
             config=config,
             user_id=api_data.user_id,
@@ -58,6 +58,8 @@ async def update_demat_api_data(api_id: int, api_data: DematApiUpdateSchema):
             return ResponseSchema(status=enums.ResponseStatus.ERROR, message="Demat API not found")
 
         update_data = update_dict_from_schema(api_data)
+        if "config" in update_data and hasattr(update_data["config"], "model_dump"):
+            update_data["config"] = update_data["config"].model_dump(mode="json")
         for key, value in update_data.items():
             setattr(demat_api, key, value)
 

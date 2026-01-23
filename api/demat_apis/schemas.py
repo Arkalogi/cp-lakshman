@@ -12,6 +12,11 @@ class DematApiConfigSchema(BaseModel):
     @model_validator(mode="after")
     def validate_provider_pair(self):
         if (
+            self.demat_provider == enums.DematProvider.UPSTOX
+            and self.api_provider != enums.ApiProvider.UPSTOX
+        ):
+            raise ValueError("ZERODHA must use KITE api_provider")
+        if (
             self.demat_provider == enums.DematProvider.ZERODHA
             and self.api_provider != enums.ApiProvider.KITE
         ):

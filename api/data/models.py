@@ -89,10 +89,10 @@ class DematApiSubscription(Base):
     subscriber_id = Column(Integer, ForeignKey("demat_apis.id", ondelete="CASCADE"))
     target_id = Column(Integer, ForeignKey("demat_apis.id", ondelete="CASCADE"))
 
-    subscriber: DematApi = relationship(
+    subscriber = relationship(
         "DematApi", back_populates="subscriptions", foreign_keys=[subscriber_id]
     )
-    target: DematApi = relationship(
+    target = relationship(
         "DematApi", back_populates="followers", foreign_keys=[target_id]
     )
 

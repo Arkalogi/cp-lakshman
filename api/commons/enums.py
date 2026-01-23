@@ -12,5 +12,6 @@ class ApiProvider(Enum):
 
 
 class DematProvider(Enum):
+    UPSTOX = "upstox"
     ZERODHA = "zerodha"
     FINVASIA = "finvasia"
