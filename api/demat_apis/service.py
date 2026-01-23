@@ -1,4 +1,5 @@
 from sqlalchemy import select
+import logging
 
 from api.commons import enums
 from api.commons.schemas import ResponseSchema
@@ -6,10 +7,14 @@ from api.commons.utils import model_list_to_dict, model_to_dict, update_dict_fro
 from api.data import database, models
 from api.demat_apis.schemas import DematApiCreateSchema, DematApiUpdateSchema
 
+logger = logging.getLogger(__name__)
+
 
 async def add_demat_api_data(api_data: DematApiCreateSchema):
     async with database.DbAsyncSession() as db:
+        logger.info(api_data)
         config = api_data.config
+        logger.info(config)
         if hasattr(config, "model_dump"):
             config = config.model_dump(mode="json")
         new_api = models.DematApi(

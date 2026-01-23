@@ -33,6 +33,7 @@ async def thread_spawn_loop():
                         continue
 
                     target_api_config = target.config
+                    logger.info(target_api_config)
                     provider_value = _normalize_provider_value(
                         target_api_config.get("api_provider")
                     )

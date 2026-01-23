@@ -8,6 +8,12 @@ from api.commons import enums
 class DematApiConfigSchema(BaseModel):
     api_provider: enums.ApiProvider
     demat_provider: enums.DematProvider
+    api_key: Optional[str]
+    api_secret: Optional[str]
+    mobile_number: Optional[str]
+    totp_secret: Optional[str]
+    pin: Optional[str]
+    redirect_url: Optional[str]
 
     @model_validator(mode="after")
     def validate_provider_pair(self):
