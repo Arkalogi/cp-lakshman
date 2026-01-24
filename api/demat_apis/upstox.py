@@ -17,7 +17,7 @@ UPSTOX_SERVICE_URL = "https://service.upstox.com"
 quantity_processed: Dict[str, int] = {}
 
 
-async def login(api_config: dict):
+def login(api_config: dict):
     api_key = api_config["api_key"]
     api_secret = api_config["api_secret"]
     redirect_url = api_config["redirect_url"]
@@ -106,17 +106,24 @@ def on_open(_):
 
 
 def on_message(_, message: dict):
-    # logger.info(f"Message: {message}")
+    logger.info(f"Message: {message}")
     message_json = json.loads(message)
     update_type = message_json["update_type"]
     if update_type == "order":
         status = message_json["status"]
+        exchange = message_json["exchange"]
+        if exchange != ["NFO", "BFO"]:
+            return
+        instrument_id = message_json["instrument_token"].split("|")[1]
+        trading_symbol = message_json["trading_symbol"]
         user_id = message_json["user_id"]
         order_id = message_json["order_id"]
         side = message_json["transaction_type"]
         average_price = message_json["average_price"]
         filled_quantity = message_json["filled_quantity"]
-        logger.info(f"Order(id: {order_id}, user_id: {user_id}, status: {status}, side: {side}, average_price: {average_price}, filled_quantity: {filled_quantity})")
+        logger.info(
+            f"Order(id: {order_id}, user_id: {user_id}, instrument_id: {instrument_id}, status: {status}, side: {side}, average_price: {average_price}, filled_quantity: {filled_quantity})"
+        )
 
 
 def on_error(_, error_code: str, message: dict):
@@ -129,7 +136,7 @@ def on_close(_, message: dict):
 
 async def start(api_config: dict):
     try:
-        _, _, access_token = await login(api_config)
+        _, _, access_token = await asyncio.to_thread(login, api_config)
         headers = {"Authorization": f"Bearer {access_token}"}
         ws = websocket.WebSocketApp(
             "wss://api.upstox.com/v2/feed/portfolio-stream-feed?update_types=order",
@@ -139,6 +146,7 @@ async def start(api_config: dict):
             on_error=on_error,
             on_close=on_close,
         )
-        ws.run_forever(reconnect=5)
-    except:
-        logger.exception(f"Order update login failed")
+        await asyncio.to_thread(ws.run_forever, reconnect=5)
+        logger.info("Order update socket disconnected, reconnecting")
+    except Exception:
+        logger.exception("Order update socket error")
