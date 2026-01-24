@@ -128,8 +128,6 @@ def on_close(_, message: dict):
 
 
 async def start(api_config: dict):
-    reconnect_delay = 2
-    max_reconnect_delay = 30
     try:
         _, _, access_token = await login(api_config)
         headers = {"Authorization": f"Bearer {access_token}"}
