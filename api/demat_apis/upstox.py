@@ -1,8 +1,11 @@
+import asyncio
 import requests
 import pyotp
 import base64
 import websocket
 import logging
+import json
+from typing import Dict
 from api.config import Config
 from urllib.parse import urlencode, urlparse, parse_qs
 
@@ -10,6 +13,8 @@ logger = logging.getLogger(__name__)
 
 UPSTOX_BASE_URL = "https://api.upstox.com/v2"
 UPSTOX_SERVICE_URL = "https://service.upstox.com"
+
+quantity_processed: Dict[str, int] = {}
 
 
 async def login(api_config: dict):
@@ -101,7 +106,17 @@ def on_open(_):
 
 
 def on_message(_, message: dict):
-    logger.info(f"Message: {message}")
+    # logger.info(f"Message: {message}")
+    message_json = json.loads(message)
+    update_type = message_json["update_type"]
+    if update_type == "order":
+        status = message_json["status"]
+        user_id = message_json["user_id"]
+        order_id = message_json["order_id"]
+        side = message_json["transaction_type"]
+        average_price = message_json["average_price"]
+        filled_quantity = message_json["filled_quantity"]
+        logger.info(f"Order(id: {order_id}, user_id: {user_id}, status: {status}, side: {side}, average_price: {average_price}, filled_quantity: {filled_quantity})")
 
 
 def on_error(_, error_code: str, message: dict):
@@ -113,16 +128,18 @@ def on_close(_, message: dict):
 
 
 async def start(api_config: dict):
+    reconnect_delay = 2
+    max_reconnect_delay = 30
     try:
-        livefeed_token, livefeed_refresh_token, _ = await login(api_config)
-
+        _, _, access_token = await login(api_config)
+        headers = {"Authorization": f"Bearer {access_token}"}
         ws = websocket.WebSocketApp(
-            "wss://market-data.upstox.com/market-data-feeder/v2/feeds",
+            "wss://api.upstox.com/v2/feed/portfolio-stream-feed?update_types=order",
+            header=headers,
             on_open=on_open,
             on_message=on_message,
             on_error=on_error,
             on_close=on_close,
-            cookie=f"access_token={livefeed_token};refresh_token={livefeed_refresh_token}",
         )
         ws.run_forever(reconnect=5)
     except:
