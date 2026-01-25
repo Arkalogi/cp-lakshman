@@ -88,6 +88,8 @@ class DematApiSubscription(Base):
     id = Column(Integer, primary_key=True)
     subscriber_id = Column(Integer, ForeignKey("demat_apis.id", ondelete="CASCADE"))
     target_id = Column(Integer, ForeignKey("demat_apis.id", ondelete="CASCADE"))
+    multiplier = Column(Integer, nullable=False)
+    is_active = Column(Boolean, default=True)
 
     subscriber = relationship(
         "DematApi", back_populates="subscriptions", foreign_keys=[subscriber_id]
@@ -120,3 +122,4 @@ class StrategySubscription(Base):
     __table_args__ = (
         UniqueConstraint("subscriber_id", "target_id", name="uq_strategy_subscription"),
     )
+
