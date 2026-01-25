@@ -7,6 +7,7 @@ import logging
 import json
 from typing import Dict
 from api.config import Config
+from api.data import red
 from urllib.parse import urlencode, urlparse, parse_qs
 
 logger = logging.getLogger(__name__)
@@ -123,6 +124,21 @@ def on_message(_, message: dict):
         filled_quantity = message_json["filled_quantity"]
         logger.info(
             f"Order(id: {order_id}, user_id: {user_id}, instrument_id: {instrument_id}, status: {status}, side: {side}, average_price: {average_price}, filled_quantity: {filled_quantity})"
+        )
+
+        order_signal = {
+            "target_id": user_id,
+            "order_id": order_id,
+            "instrument_id": instrument_id,
+            "trading_symbol": trading_symbol,
+            "side": side,
+            "average_price": average_price,
+            "quantity": filled_quantity,
+            "status": status,
+        }
+        red.get_redis().rpush(
+            red.ORDER_SIGNAL_LIST,
+            json.dumps(order_signal, separators=(",", ":"), ensure_ascii=True),
         )
 
 
