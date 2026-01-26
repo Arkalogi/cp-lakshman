@@ -85,6 +85,9 @@ class DematApi(Base):
     )
 
     orders = relationship("Order", back_populates="api")
+    subscriber_orders = relationship(
+        "SubscriberOrder", back_populates="subscriber", foreign_keys="SubscriberOrder.subscriber_id"
+    )
 
 
 class DematApiSubscription(Base):
@@ -153,3 +156,24 @@ class Order(Base):
         Integer, ForeignKey("demat_apis.id", ondelete="SET NULL"), nullable=True
     )
     api = relationship("DematApi", back_populates="orders")
+    subscriber_orders = relationship(
+        "SubscriberOrder", back_populates="parent_order", foreign_keys="SubscriberOrder.parent_order_id"
+    )
+
+
+class SubscriberOrder(Base):
+    __tablename__ = "subscriber_orders"
+
+    id = Column(Integer, primary_key=True, index=True)
+    parent_order_id = Column(Integer, ForeignKey("orders.id", ondelete="SET NULL"), nullable=True)
+    parent_tag = Column(String(36), index=True, nullable=False)
+    subscriber_id = Column(Integer, ForeignKey("demat_apis.id", ondelete="CASCADE"), nullable=False)
+    quantity = Column(Integer, nullable=False)
+    status = Column(String(20), nullable=False, default=OrderStatus.PENDING.value)
+    broker_order_id = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    meta_data = Column(Text, nullable=True)
+
+    parent_order = relationship("Order", back_populates="subscriber_orders", foreign_keys=[parent_order_id])
+    subscriber = relationship("DematApi", back_populates="subscriber_orders", foreign_keys=[subscriber_id])

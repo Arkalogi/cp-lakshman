@@ -8,6 +8,7 @@ from api.demat_api_subscriptions.routes import router as demat_api_subscriptions
 from api.strategies.routes import router as strategies_router
 from api.strategy_subscriptions.routes import router as strategy_subscriptions_router
 from api.users.routes import router as users_router
+from api.orders.routes import router as orders_router
 from api.workers import order_generator, allocator
 
 logging.basicConfig(
@@ -34,6 +35,7 @@ app.include_router(strategies_router)
 app.include_router(demat_apis_router)
 app.include_router(demat_api_subscriptions_router)
 app.include_router(strategy_subscriptions_router)
+app.include_router(orders_router)
 
 
 @app.on_event("startup")

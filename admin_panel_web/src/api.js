@@ -74,3 +74,7 @@ export async function deleteEntity(baseUrl, endpoint, id) {
     method: "DELETE",
   });
 }
+
+export async function listSubscriberOrders(baseUrl, orderId) {
+  return listEntities(baseUrl, `/orders/${orderId}/subscriber-orders`);
+}

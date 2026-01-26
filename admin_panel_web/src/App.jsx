@@ -4,11 +4,13 @@ import {
   deleteEntity,
   health,
   listEntities,
+  listSubscriberOrders,
   normalizeBaseUrl,
   updateEntity,
 } from "./api.js";
 import CopyMonitor from "./components/CopyMonitor.jsx";
 import EntitySection from "./components/EntitySection.jsx";
+import OrderMonitor from "./components/OrderMonitor.jsx";
 
 const DEFAULT_BASE_URL = "http://localhost:8000";
 
@@ -133,6 +135,10 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [orders, setOrders] = useState([]);
+  const [subscriberOrders, setSubscriberOrders] = useState([]);
+  const [subscriberModalOpen, setSubscriberModalOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
   const [data, setData] = useState(() =>
     entityConfigs.reduce((acc, entity) => {
       acc[entity.key] = [];
@@ -160,6 +166,8 @@ export default function App() {
       await Promise.all(
         entityConfigs.map((entity) => refreshEntity(entity.key, entity.endpoint))
       );
+      const orderList = await listEntities(normalizedBaseUrl, "/orders");
+      setOrders(orderList);
       const status = await health(normalizedBaseUrl);
       setHealthStatus(status);
       setNotice("Data refreshed.");
@@ -227,6 +235,31 @@ export default function App() {
     }
   };
 
+  const handleOrderRefresh = async () => {
+    try {
+      const orderList = await listEntities(normalizedBaseUrl, "/orders");
+      setOrders(orderList);
+      setNotice("Orders refreshed.");
+    } catch (err) {
+      setError(err.message || "Failed to refresh orders.");
+    }
+  };
+
+  const handleViewSubscribers = async (order) => {
+    if (!order?.id) {
+      setError("Order ID is required to load subscriber orders.");
+      return;
+    }
+    try {
+      const list = await listSubscriberOrders(normalizedBaseUrl, order.id);
+      setSubscriberOrders(list);
+      setSelectedOrder(order);
+      setSubscriberModalOpen(true);
+    } catch (err) {
+      setError(err.message || "Failed to load subscriber orders.");
+    }
+  };
+
   return (
     <div className="app">
       <header className="hero">
@@ -285,6 +318,12 @@ export default function App() {
         dematSubs={data.demat_api_subscriptions}
       />
 
+      <OrderMonitor
+        orders={orders}
+        onRefresh={handleOrderRefresh}
+        onViewSubscribers={handleViewSubscribers}
+      />
+
       {entityConfigs.map((entity) => (
         <EntitySection
           key={entity.key}
@@ -301,6 +340,53 @@ export default function App() {
           onDelete={(id, errorObj) => handleDelete(entity, id, errorObj)}
         />
       ))}
+
+      {subscriberModalOpen ? (
+        <div
+          className="modal-backdrop"
+          onClick={() => setSubscriberModalOpen(false)}
+        >
+          <div className="modal-card" onClick={(event) => event.stopPropagation()}>
+            <div className="form-card-header">
+              <h3>
+                Subscriber Orders for Order{" "}
+                {selectedOrder?.id ? `#${selectedOrder.id}` : ""}
+              </h3>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => setSubscriberModalOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+            {subscriberOrders.length ? (
+              <div className="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      {Object.keys(subscriberOrders[0] || {}).map((key) => (
+                        <th key={key}>{key}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {subscriberOrders.map((row, index) => (
+                      <tr key={row.id || index}>
+                        {Object.keys(subscriberOrders[0] || {}).map((key) => (
+                          <td key={key}>{String(row?.[key] ?? "")}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="empty-state">No subscriber orders found.</div>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
