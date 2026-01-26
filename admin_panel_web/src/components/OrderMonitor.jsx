@@ -10,7 +10,16 @@ function formatCell(value) {
   return String(value);
 }
 
-export default function OrderMonitor({ orders, onRefresh, onViewSubscribers }) {
+export default function OrderMonitor({
+  orders,
+  total,
+  limit,
+  offset,
+  onRefresh,
+  onViewSubscribers,
+  onNext,
+  onPrev,
+}) {
   const columns = useMemo(
     () => [
       "id",
@@ -33,7 +42,9 @@ export default function OrderMonitor({ orders, onRefresh, onViewSubscribers }) {
           <p>Parent orders generated from Upstox fills.</p>
         </div>
         <div className="panel-actions">
-          <span className="pill">{orders?.length ?? 0} items</span>
+          <span className="pill">
+            {orders?.length ?? 0} / {total ?? 0}
+          </span>
           <button type="button" className="ghost" onClick={onRefresh}>
             Refresh
           </button>
@@ -76,6 +87,22 @@ export default function OrderMonitor({ orders, onRefresh, onViewSubscribers }) {
         ) : (
           <div className="empty-state">No orders yet.</div>
         )}
+        <div className="pagination">
+          <button type="button" className="ghost" onClick={onPrev} disabled={offset <= 0}>
+            Prev
+          </button>
+          <span className="page-label">
+            {offset + 1}-{Math.min(offset + limit, total)} of {total}
+          </span>
+          <button
+            type="button"
+            className="ghost"
+            onClick={onNext}
+            disabled={offset + limit >= total}
+          >
+            Next
+          </button>
+        </div>
       </div>
     </section>
   );

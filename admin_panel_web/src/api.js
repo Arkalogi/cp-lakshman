@@ -54,6 +54,18 @@ export async function listEntities(baseUrl, endpoint) {
   return Array.isArray(payload) ? payload : [payload];
 }
 
+export async function listOrders(baseUrl, limit = 20, offset = 0) {
+  const query = `?limit=${limit}&offset=${offset}`;
+  const data = await request(baseUrl, `/orders/${query}`);
+  const payload = data?.data || {};
+  return {
+    items: Array.isArray(payload.items) ? payload.items : [],
+    total: Number(payload.total || 0),
+    limit: Number(payload.limit || limit),
+    offset: Number(payload.offset || offset),
+  };
+}
+
 export async function createEntity(baseUrl, endpoint, payload) {
   const collectionPath = endpoint.endsWith("/") ? endpoint : `${endpoint}/`;
   return request(baseUrl, collectionPath, {

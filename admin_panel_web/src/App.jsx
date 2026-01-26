@@ -4,6 +4,7 @@ import {
   deleteEntity,
   health,
   listEntities,
+  listOrders,
   listSubscriberOrders,
   normalizeBaseUrl,
   updateEntity,
@@ -136,6 +137,9 @@ export default function App() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [orders, setOrders] = useState([]);
+  const [ordersTotal, setOrdersTotal] = useState(0);
+  const [ordersLimit, setOrdersLimit] = useState(20);
+  const [ordersOffset, setOrdersOffset] = useState(0);
   const [subscriberOrders, setSubscriberOrders] = useState([]);
   const [subscriberModalOpen, setSubscriberModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -166,8 +170,13 @@ export default function App() {
       await Promise.all(
         entityConfigs.map((entity) => refreshEntity(entity.key, entity.endpoint))
       );
-      const orderList = await listEntities(normalizedBaseUrl, "/orders");
-      setOrders(orderList);
+      const ordersPage = await listOrders(
+        normalizedBaseUrl,
+        ordersLimit,
+        ordersOffset
+      );
+      setOrders(ordersPage.items);
+      setOrdersTotal(ordersPage.total);
       const status = await health(normalizedBaseUrl);
       setHealthStatus(status);
       setNotice("Data refreshed.");
@@ -237,11 +246,48 @@ export default function App() {
 
   const handleOrderRefresh = async () => {
     try {
-      const orderList = await listEntities(normalizedBaseUrl, "/orders");
-      setOrders(orderList);
+      const ordersPage = await listOrders(
+        normalizedBaseUrl,
+        ordersLimit,
+        ordersOffset
+      );
+      setOrders(ordersPage.items);
+      setOrdersTotal(ordersPage.total);
       setNotice("Orders refreshed.");
     } catch (err) {
       setError(err.message || "Failed to refresh orders.");
+    }
+  };
+
+  const handleOrdersNext = async () => {
+    const nextOffset = ordersOffset + ordersLimit;
+    setOrdersOffset(nextOffset);
+    try {
+      const ordersPage = await listOrders(
+        normalizedBaseUrl,
+        ordersLimit,
+        nextOffset
+      );
+      setOrders(ordersPage.items);
+      setOrdersTotal(ordersPage.total);
+    } catch (err) {
+      setError(err.message || "Failed to load next orders page.");
+    }
+  };
+
+  const handleOrdersPrev = async () => {
+    const nextOffset = Math.max(0, ordersOffset - ordersLimit);
+    setOrdersOffset(nextOffset);
+    try {
+      const ordersPage = await listOrders(
+        normalizedBaseUrl,
+        ordersLimit,
+        nextOffset
+      );
+      setOrders(ordersPage.items);
+      setOrdersTotal(ordersPage.total);
+    } catch (err) {
+      setError(err.message || "Failed to load previous orders page.");
     }
   };
 
@@ -320,8 +366,13 @@ export default function App() {
 
       <OrderMonitor
         orders={orders}
+        total={ordersTotal}
+        limit={ordersLimit}
+        offset={ordersOffset}
         onRefresh={handleOrderRefresh}
         onViewSubscribers={handleViewSubscribers}
+        onNext={handleOrdersNext}
+        onPrev={handleOrdersPrev}
       />
 
       {entityConfigs.map((entity) => (

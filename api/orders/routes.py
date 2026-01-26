@@ -7,9 +7,9 @@ router = APIRouter(prefix="/orders", tags=["Orders"])
 
 
 @router.get("/", response_model=ResponseSchema)
-async def list_orders():
+async def list_orders(limit: int = 50, offset: int = 0):
     try:
-        return await service.list_orders_data()
+        return await service.list_orders_data(limit=limit, offset=offset)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
