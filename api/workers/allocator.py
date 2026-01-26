@@ -12,7 +12,7 @@ demat_api_subscriptions: Dict[int, List[models.DematApiSubscription]] = {}
 
 
 async def thread_spawn_loop():
-    logger.info("Order generator loop started")
+    logger.info("Allocator loop started")
     redis_client = red.get_async_redis()
     while True:
         signal = await redis_client.blpop(red.ORDER_SIGNAL_LIST, timeout=1)
