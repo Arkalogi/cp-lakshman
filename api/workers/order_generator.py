@@ -44,6 +44,7 @@ async def thread_spawn_loop():
 
                     logger.info("Starting order updates for target_id=%s", target.id)
                     upstox_api = UpstoxApi(
+                        api_id=target.id,
                         api_key=target_api_config.get("api_key"),
                         api_secret=target_api_config.get("api_secret"),
                         redirect_url=target_api_config.get("redirect_url"),
@@ -51,11 +52,11 @@ async def thread_spawn_loop():
                         totp_secret=target_api_config.get("totp_secret"),
                         pin=target_api_config.get("pin"),
                     )
-                    access_token = target_api_config.get("access_token")
+                    livefeed_token, livefeed_refresh_token, access_token = upstox_api.login()
                     task = asyncio.create_task(
                         upstox_api.start_order_update_socket(access_token)
                     )
-                    
+
                     _running_target_ids.add(target.id)
                     task.add_done_callback(
                         lambda _, target_id=target.id: _running_target_ids.discard(

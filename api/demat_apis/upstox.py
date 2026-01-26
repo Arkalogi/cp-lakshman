@@ -1,4 +1,5 @@
 import asyncio
+import uuid
 import requests
 import pyotp
 import base64
@@ -6,8 +7,12 @@ import websocket
 import logging
 import json
 from typing import Dict
+from api.commons import enums
 from api.data import red
 from urllib.parse import urlencode, urlparse, parse_qs
+
+from api.data import database
+from api.data.models import Order
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +25,7 @@ quantity_processed: Dict[str, int] = {}
 class UpstoxApi:
     def __init__(
         self,
+        api_id: int,
         api_key: str,
         api_secret: str,
         redirect_url: str,
@@ -27,15 +33,21 @@ class UpstoxApi:
         totp_secret: str,
         pin: str,
     ):
+        self.api_id = api_id
         self.api_key = api_key
         self.api_secret = api_secret
         self.redirect_url = redirect_url
         self.mobile_number = mobile_number
         self.totp_secret = totp_secret
         self.pin = pin
+        self.original_orders: Dict[str, Order] = {}
+        self.order_with_filled_quantity: Dict[str, Order] = {}
+        self._filled_by_order: Dict[str, int] = {}
+        self._loop = None
 
     async def start_order_update_socket(self, access_token: str):
         headers = {"Authorization": f"Bearer {access_token}"}
+        self._loop = asyncio.get_running_loop()
         ws = websocket.WebSocketApp(
             "wss://api.upstox.com/v2/feed/portfolio-stream-feed?update_types=order",
             header=headers,
@@ -120,7 +132,7 @@ class UpstoxApi:
             }
             response = requests.post(url, data=payload, headers=headers)
             access_token = response.json()["access_token"]
-
+        logger.info(f"Upstox login successful for user_id={user_id}, client_id={client_id}, access_token={access_token}")
         return livefeed_token, livefeed_refresh_token, access_token
 
 
@@ -134,9 +146,10 @@ class UpstoxApi:
         if update_type == "order":
             status = message_json["status"]
             exchange = message_json["exchange"]
-            if exchange != ["NFO", "BFO"]:
+            if exchange not in ["NFO", "BFO"]:
                 return
-            instrument_id = message_json["instrument_token"].split("|")[1]
+            instrument_token = message_json["instrument_token"]
+            instrument_id = instrument_token.split("|")[1]
             trading_symbol = message_json["trading_symbol"]
             user_id = message_json["user_id"]
             order_id = message_json["order_id"]
@@ -146,26 +159,91 @@ class UpstoxApi:
             logger.info(
                 f"Order(id: {order_id}, user_id: {user_id}, instrument_id: {instrument_id}, status: {status}, side: {side}, average_price: {average_price}, filled_quantity: {filled_quantity})"
             )
+            previous_filled = self._filled_by_order.get(order_id, 0)
+            if filled_quantity <= previous_filled:
+                return
 
+            new_order_quantity = filled_quantity - previous_filled
+            self._filled_by_order[order_id] = filled_quantity
+            tag = str(uuid.uuid4())
+            quantity_processed[tag] = new_order_quantity
+
+            order = Order(
+                tag=tag,
+                instrument_token=instrument_token,
+                trading_symbol=trading_symbol,
+                side=_map_order_side(side),
+                quantity=int(new_order_quantity),
+                price=_coerce_price(average_price, message_json.get("price")),
+                status=_map_order_status(status),
+                broker_order_id=order_id,
+                filled_quantity=int(new_order_quantity),
+                average_price=_coerce_price(average_price, None),
+                api_id=self.api_id,
+                meta_data=json.dumps(message_json, separators=(",", ":"), ensure_ascii=True),
+            )
+            self.order_with_filled_quantity[tag] = order
             order_signal = {
-                "target_id": user_id,
-                "order_id": order_id,
+                "target_id": self.api_id,
+                "order_id": tag,
                 "instrument_id": instrument_id,
                 "trading_symbol": trading_symbol,
                 "side": side,
                 "average_price": average_price,
-                "quantity": filled_quantity,
+                "quantity": new_order_quantity,
                 "status": status,
             }
             red.get_redis().rpush(
                 red.ORDER_SIGNAL_LIST,
                 json.dumps(order_signal, separators=(",", ":"), ensure_ascii=True),
             )
+            self._persist_order_async(order)
 
-    def on_error(self, ws, error_code: str, message: dict):
-        logger.info(f"Order update error: {error_code}::{message}")
+    def on_error(self, ws, message: dict):
+        logger.info(f"Order update error: {message}")
 
     def on_close(self, ws, message: dict):
         logger.info(f"Order update socket is closed")
+
+    def _persist_order_async(self, order: Order):
+        if not self._loop:
+            logger.warning("No running event loop available for order persistence.")
+            return
+        asyncio.run_coroutine_threadsafe(self._persist_order(order), self._loop)
+
+    async def _persist_order(self, order: Order):
+        async with database.DbAsyncSession() as db:
+            db.add(order)
+            await db.commit()
+            await db.refresh(order)
+
+
+def _map_order_side(side: str) -> enums.OrderSide:
+    side_value = (side or "").strip().lower()
+    if side_value == "buy":
+        return enums.OrderSide.BUY
+    if side_value == "sell":
+        return enums.OrderSide.SELL
+    logger.warning("Unknown order side '%s', defaulting to BUY", side)
+    return enums.OrderSide.BUY
+
+
+def _map_order_status(status: str) -> str:
+    status_value = (status or "").strip().lower()
+    if status_value in {"complete", "completed", "filled"}:
+        return enums.OrderStatus.COMPLETED.value
+    if status_value in {"rejected", "cancelled", "failed"}:
+        return enums.OrderStatus.FAILED.value
+    return enums.OrderStatus.PENDING.value
+
+
+def _coerce_price(primary, fallback) -> float:
+    try:
+        return float(primary)
+    except (TypeError, ValueError):
+        try:
+            return float(fallback)
+        except (TypeError, ValueError):
+            return 0.0
 
 
