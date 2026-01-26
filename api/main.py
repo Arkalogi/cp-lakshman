@@ -8,7 +8,7 @@ from api.demat_api_subscriptions.routes import router as demat_api_subscriptions
 from api.strategies.routes import router as strategies_router
 from api.strategy_subscriptions.routes import router as strategy_subscriptions_router
 from api.users.routes import router as users_router
-from api.workers import order_generator
+from api.workers import order_generator, allocator
 
 logging.basicConfig(
     level=logging.INFO,
@@ -42,14 +42,20 @@ async def start_workers():
     app.state.order_generator_task = asyncio.create_task(
         order_generator.thread_spawn_loop()
     )
+    app.state.allocator_task = asyncio.create_task(allocator.thread_spawn_loop())
 
 
 @app.on_event("shutdown")
 async def stop_workers():
-    task = getattr(app.state, "order_generator_task", None)
-    if task:
+    tasks = [
+        getattr(app.state, "order_generator_task", None),
+        getattr(app.state, "allocator_task", None),
+    ]
+    tasks = [task for task in tasks if task]
+    if tasks:
         logger.info("Stopping worker tasks")
-        task.cancel()
+        for task in tasks:
+            task.cancel()
 
 
 @app.get("/health")
