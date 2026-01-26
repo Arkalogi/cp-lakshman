@@ -140,9 +140,9 @@ export default function App() {
   const [ordersTotal, setOrdersTotal] = useState(0);
   const [ordersLimit, setOrdersLimit] = useState(20);
   const [ordersOffset, setOrdersOffset] = useState(0);
-  const [subscriberOrders, setSubscriberOrders] = useState([]);
-  const [subscriberModalOpen, setSubscriberModalOpen] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [expandedOrderId, setExpandedOrderId] = useState(null);
+  const [subscriberOrdersByOrderId, setSubscriberOrdersByOrderId] = useState({});
+  const [loadingOrderId, setLoadingOrderId] = useState(null);
   const [data, setData] = useState(() =>
     entityConfigs.reduce((acc, entity) => {
       acc[entity.key] = [];
@@ -291,18 +291,30 @@ export default function App() {
     }
   };
 
-  const handleViewSubscribers = async (order) => {
+  const handleToggleSubscribers = async (order) => {
     if (!order?.id) {
       setError("Order ID is required to load subscriber orders.");
       return;
     }
+    if (expandedOrderId === order.id) {
+      setExpandedOrderId(null);
+      return;
+    }
+    setExpandedOrderId(order.id);
+    if (subscriberOrdersByOrderId[order.id]) {
+      return;
+    }
+    setLoadingOrderId(order.id);
     try {
       const list = await listSubscriberOrders(normalizedBaseUrl, order.id);
-      setSubscriberOrders(list);
-      setSelectedOrder(order);
-      setSubscriberModalOpen(true);
+      setSubscriberOrdersByOrderId((prev) => ({
+        ...prev,
+        [order.id]: list,
+      }));
     } catch (err) {
       setError(err.message || "Failed to load subscriber orders.");
+    } finally {
+      setLoadingOrderId(null);
     }
   };
 
@@ -370,7 +382,10 @@ export default function App() {
         limit={ordersLimit}
         offset={ordersOffset}
         onRefresh={handleOrderRefresh}
-        onViewSubscribers={handleViewSubscribers}
+        onToggleSubscribers={handleToggleSubscribers}
+        expandedOrderId={expandedOrderId}
+        subscriberOrdersByOrderId={subscriberOrdersByOrderId}
+        loadingOrderId={loadingOrderId}
         onNext={handleOrdersNext}
         onPrev={handleOrdersPrev}
       />
@@ -392,52 +407,6 @@ export default function App() {
         />
       ))}
 
-      {subscriberModalOpen ? (
-        <div
-          className="modal-backdrop"
-          onClick={() => setSubscriberModalOpen(false)}
-        >
-          <div className="modal-card" onClick={(event) => event.stopPropagation()}>
-            <div className="form-card-header">
-              <h3>
-                Subscriber Orders for Order{" "}
-                {selectedOrder?.id ? `#${selectedOrder.id}` : ""}
-              </h3>
-              <button
-                type="button"
-                className="ghost"
-                onClick={() => setSubscriberModalOpen(false)}
-              >
-                Close
-              </button>
-            </div>
-            {subscriberOrders.length ? (
-              <div className="table-wrapper">
-                <table>
-                  <thead>
-                    <tr>
-                      {Object.keys(subscriberOrders[0] || {}).map((key) => (
-                        <th key={key}>{key}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {subscriberOrders.map((row, index) => (
-                      <tr key={row.id || index}>
-                        {Object.keys(subscriberOrders[0] || {}).map((key) => (
-                          <td key={key}>{String(row?.[key] ?? "")}</td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="empty-state">No subscriber orders found.</div>
-            )}
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

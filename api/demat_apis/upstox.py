@@ -189,7 +189,7 @@ class UpstoxApi:
                 side=_map_order_side(side),
                 quantity=int(new_order_quantity),
                 price=_coerce_price(average_price, message_json.get("price")),
-                status=_map_order_status(status),
+                status=enums.OrderStatus.COMPLETED.value,
                 broker_order_id=order_id,
                 filled_quantity=int(new_order_quantity),
                 average_price=_coerce_price(average_price, None),
@@ -205,7 +205,7 @@ class UpstoxApi:
                 "side": side,
                 "average_price": average_price,
                 "quantity": new_order_quantity,
-                "status": status,
+                "status": enums.OrderStatus.PENDING.value,
             }
             red.get_redis().rpush(
                 red.ORDER_SIGNAL_LIST,
