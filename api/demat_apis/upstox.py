@@ -140,24 +140,38 @@ class UpstoxApi:
         logger.info("Order update socket is connected.")
 
     def on_message(self, ws, message: dict):
-        logger.info(f"Message: {message}")
-        message_json = json.loads(message)
-        update_type = message_json["update_type"]
-        if update_type == "order":
-            status = message_json["status"]
-            exchange = message_json["exchange"]
-            if exchange not in ["NFO", "BFO"]:
+        logger.info("Message: %s", message)
+        try:
+            message_json = json.loads(message)
+            update_type = message_json.get("update_type")
+            if update_type != "order":
                 return
+
+            status = message_json.get("status")
+            exchange = message_json.get("exchange")
+            exchange_value = (
+                exchange[0] if isinstance(exchange, list) and exchange else exchange
+            )
+            if exchange_value not in {"NFO", "BFO"}:
+                return
+
             instrument_token = message_json["instrument_token"]
             instrument_id = instrument_token.split("|")[1]
-            trading_symbol = message_json["trading_symbol"]
-            user_id = message_json["user_id"]
-            order_id = message_json["order_id"]
-            side = message_json["transaction_type"]
-            average_price = message_json["average_price"]
-            filled_quantity = message_json["filled_quantity"]
+            trading_symbol = message_json.get("trading_symbol")
+            user_id = message_json.get("user_id")
+            order_id = message_json.get("order_id")
+            side = message_json.get("transaction_type")
+            average_price = message_json.get("average_price")
+            filled_quantity = int(float(message_json.get("filled_quantity") or 0))
             logger.info(
-                f"Order(id: {order_id}, user_id: {user_id}, instrument_id: {instrument_id}, status: {status}, side: {side}, average_price: {average_price}, filled_quantity: {filled_quantity})"
+                "Order(id=%s user_id=%s instrument_id=%s status=%s side=%s average_price=%s filled_quantity=%s)",
+                order_id,
+                user_id,
+                instrument_id,
+                status,
+                side,
+                average_price,
+                filled_quantity,
             )
             previous_filled = self._filled_by_order.get(order_id, 0)
             if filled_quantity <= previous_filled:
@@ -198,6 +212,8 @@ class UpstoxApi:
                 json.dumps(order_signal, separators=(",", ":"), ensure_ascii=True),
             )
             self._persist_order_async(order)
+        except Exception:
+            logger.exception("Failed to process order update message.")
 
     def on_error(self, ws, message: dict):
         logger.info(f"Order update error: {message}")
@@ -212,10 +228,13 @@ class UpstoxApi:
         asyncio.run_coroutine_threadsafe(self._persist_order(order), self._loop)
 
     async def _persist_order(self, order: Order):
-        async with database.DbAsyncSession() as db:
-            db.add(order)
-            await db.commit()
-            await db.refresh(order)
+        try:
+            async with database.DbAsyncSession() as db:
+                db.add(order)
+                await db.commit()
+                await db.refresh(order)
+        except Exception:
+            logger.exception("Failed to persist order %s", order.tag)
 
 
 def _map_order_side(side: str) -> enums.OrderSide:
