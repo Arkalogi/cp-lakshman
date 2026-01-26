@@ -45,7 +45,8 @@ export async function health(baseUrl) {
 }
 
 export async function listEntities(baseUrl, endpoint) {
-  const data = await request(baseUrl, endpoint);
+  const collectionPath = endpoint.endsWith("/") ? endpoint : `${endpoint}/`;
+  const data = await request(baseUrl, collectionPath);
   if (!data) {
     return [];
   }
@@ -54,7 +55,8 @@ export async function listEntities(baseUrl, endpoint) {
 }
 
 export async function createEntity(baseUrl, endpoint, payload) {
-  return request(baseUrl, endpoint, {
+  const collectionPath = endpoint.endsWith("/") ? endpoint : `${endpoint}/`;
+  return request(baseUrl, collectionPath, {
     method: "POST",
     body: JSON.stringify(payload),
   });

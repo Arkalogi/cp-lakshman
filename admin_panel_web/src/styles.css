@@ -127,15 +127,15 @@ select {
   text-transform: uppercase;
 }
 
+.panel-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
 .panel-content {
   display: grid;
   gap: 24px;
-}
-
-.panel-forms {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }
 
 .form-card {
@@ -149,6 +149,19 @@ select {
 }
 
 .form-card h3 {
+  margin: 0;
+}
+
+.form-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.muted {
+  color: var(--muted);
+  font-style: italic;
   margin: 0;
 }
 
@@ -269,6 +282,53 @@ th {
 .empty-state {
   color: var(--muted);
   font-style: italic;
+}
+
+.row-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 22, 34, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 50;
+  animation: fadeIn 0.2s ease;
+}
+
+.modal-card {
+  background: #fff;
+  border-radius: 18px;
+  padding: 20px;
+  max-width: 720px;
+  width: min(720px, 92vw);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.panel-foot {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.form-inline {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+  flex-wrap: wrap;
 }
 
 @keyframes fadeIn {

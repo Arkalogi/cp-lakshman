@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from api.demat_apis.routes import router as demat_apis_router
 from api.demat_api_subscriptions.routes import router as demat_api_subscriptions_router
@@ -16,6 +17,17 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="CopyTrade API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(users_router)
 app.include_router(strategies_router)

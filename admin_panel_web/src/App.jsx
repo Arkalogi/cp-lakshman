@@ -67,7 +67,7 @@ const entityConfigs = [
   {
     key: "demat_apis",
     title: "Demat APIs",
-    endpoint: "/demat-apis",
+    endpoint: "/demat-apis/",
     columns: ["id", "config", "user_id"],
     createFields: [
       {

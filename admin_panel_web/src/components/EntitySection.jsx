@@ -99,6 +99,7 @@ function DataTable({ columns, rows }) {
             {visibleColumns.map((column) => (
               <th key={column}>{column}</th>
             ))}
+            <th>actions</th>
           </tr>
         </thead>
         <tbody>
@@ -107,6 +108,7 @@ function DataTable({ columns, rows }) {
               {visibleColumns.map((column) => (
                 <td key={column}>{formatCell(row?.[column])}</td>
               ))}
+              <td>{row?.__actions}</td>
             </tr>
           ))}
         </tbody>
@@ -139,6 +141,8 @@ export default function EntitySection({
   const [createForm, setCreateForm] = useState(buildInitialForm(createFields));
   const [updateForm, setUpdateForm] = useState(buildInitialForm(updateFields));
   const [deleteId, setDeleteId] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
+  const [showUpdate, setShowUpdate] = useState(false);
 
   const handleCreate = async (event) => {
     event.preventDefault();
@@ -172,9 +176,57 @@ export default function EntitySection({
       onDelete(null, new Error("ID is required for delete."));
       return;
     }
+    const confirmed = window.confirm(
+      `Delete ${title} with ID ${deleteId}? This cannot be undone.`
+    );
+    if (!confirmed) {
+      return;
+    }
     await onDelete(deleteId);
     setDeleteId("");
   };
+
+  const handleRowEdit = (row) => {
+    const nextForm = buildInitialForm(updateFields);
+    updateFields.forEach((field) => {
+      if (row[field.name] !== undefined && row[field.name] !== null) {
+        nextForm[field.name] =
+          typeof row[field.name] === "object"
+            ? JSON.stringify(row[field.name])
+            : String(row[field.name]);
+      }
+    });
+    setUpdateForm(nextForm);
+    setShowUpdate(true);
+  };
+
+  const handleRowDelete = async (row) => {
+    if (!row?.id) {
+      onDelete(null, new Error("ID is required for delete."));
+      return;
+    }
+    const confirmed = window.confirm(
+      `Delete ${title} with ID ${row.id}? This cannot be undone.`
+    );
+    if (!confirmed) {
+      return;
+    }
+    await onDelete(row.id);
+  };
+
+  const rowsWithActions = (data || []).map((row) => ({
+    ...row,
+    __actions: (
+      <div className="row-actions">
+        <button type="button" className="ghost" onClick={() => handleRowEdit(row)}>
+          Modify
+        </button>
+        <button type="button" className="ghost" onClick={() => handleRowDelete(row)}>
+          Delete
+        </button>
+      </div>
+    ),
+  }));
 
   return (
     <section className="panel">
@@ -183,67 +235,107 @@ export default function EntitySection({
           <h2>{title}</h2>
           {description ? <p>{description}</p> : null}
         </div>
-        <span className="pill">{data?.length ?? 0} items</span>
+        <div className="panel-actions">
+          <span className="pill">{data?.length ?? 0} items</span>
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => setShowCreate((prev) => !prev)}
+          >
+            {showCreate ? "Hide" : "Add"}
+          </button>
+        </div>
       </header>
 
       <div className="panel-content">
-        <div className="panel-forms">
-          <form onSubmit={handleCreate} className="form-card">
-            <h3>Create</h3>
-            <div className="form-grid">
-              {createFields.map((field) => (
-                <InputField
-                  key={`create-${field.name}`}
-                  field={field}
-                  value={createForm[field.name]}
-                  onChange={(name, value) =>
-                    setCreateForm((prev) => ({ ...prev, [name]: value }))
-                  }
-                />
-              ))}
-            </div>
-            <button type="submit">Create</button>
-          </form>
-
-          <form onSubmit={handleUpdate} className="form-card">
-            <h3>Modify</h3>
-            <div className="form-grid">
-              {updateFields.map((field) => (
-                <InputField
-                  key={`update-${field.name}`}
-                  field={field}
-                  value={updateForm[field.name]}
-                  onChange={(name, value) =>
-                    setUpdateForm((prev) => ({ ...prev, [name]: value }))
-                  }
-                />
-              ))}
-            </div>
-            <button type="submit">Update</button>
-          </form>
-
-          <form onSubmit={handleDelete} className="form-card">
-            <h3>Cancel / Delete</h3>
-            <div className="form-grid">
-              <div className="field">
-                <label htmlFor={`${title}-delete-id`}>ID</label>
-                <input
-                  id={`${title}-delete-id`}
-                  type="number"
-                  value={deleteId}
-                  onChange={(event) => setDeleteId(event.target.value)}
-                />
-              </div>
-            </div>
-            <button type="submit" className="ghost">
-              Delete
-            </button>
-          </form>
-        </div>
-
         <div className="panel-table">
-          <DataTable columns={columns} rows={data} />
+          <DataTable columns={columns} rows={rowsWithActions} />
         </div>
+      </div>
+
+      {showCreate ? (
+        <div className="modal-backdrop" onClick={() => setShowCreate(false)}>
+          <div className="modal-card" onClick={(event) => event.stopPropagation()}>
+            <div className="form-card-header">
+              <h3>Create {title}</h3>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => setShowCreate(false)}
+              >
+                Close
+              </button>
+            </div>
+            <form onSubmit={handleCreate}>
+              <div className="form-grid">
+                {createFields.map((field) => (
+                  <InputField
+                    key={`create-${field.name}`}
+                    field={field}
+                    value={createForm[field.name]}
+                    onChange={(name, value) =>
+                      setCreateForm((prev) => ({ ...prev, [name]: value }))
+                    }
+                  />
+                ))}
+              </div>
+              <div className="modal-actions">
+                <button type="submit">Create</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {showUpdate ? (
+        <div className="modal-backdrop" onClick={() => setShowUpdate(false)}>
+          <div className="modal-card" onClick={(event) => event.stopPropagation()}>
+            <div className="form-card-header">
+              <h3>Modify {title}</h3>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => setShowUpdate(false)}
+              >
+                Close
+              </button>
+            </div>
+            <form onSubmit={handleUpdate}>
+              <div className="form-grid">
+                {updateFields.map((field) => (
+                  <InputField
+                    key={`update-${field.name}`}
+                    field={field}
+                    value={updateForm[field.name]}
+                    onChange={(name, value) =>
+                      setUpdateForm((prev) => ({ ...prev, [name]: value }))
+                    }
+                  />
+                ))}
+              </div>
+              <div className="modal-actions">
+                <button type="submit">Update</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="panel-foot">
+        <form onSubmit={handleDelete} className="form-inline">
+          <div className="field">
+            <label htmlFor={`${title}-delete-id`}>Delete by ID</label>
+            <input
+              id={`${title}-delete-id`}
+              type="number"
+              value={deleteId}
+              onChange={(event) => setDeleteId(event.target.value)}
+            />
+          </div>
+          <button type="submit" className="ghost">
+            Delete
+          </button>
+        </form>
       </div>
     </section>
   );
