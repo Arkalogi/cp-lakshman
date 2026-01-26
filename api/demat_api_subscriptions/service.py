@@ -15,6 +15,7 @@ async def add_demat_api_subscription_data(subscription_data: DematApiSubscriptio
         new_subscription = models.DematApiSubscription(
             subscriber_id=subscription_data.subscriber_id,
             target_id=subscription_data.target_id,
+            multiplier=subscription_data.multiplier or 1.0,
         )
         db.add(new_subscription)
         await db.commit()

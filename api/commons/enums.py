@@ -15,3 +15,13 @@ class DematProvider(Enum):
     UPSTOX = "upstox"
     ZERODHA = "zerodha"
     FINVASIA = "finvasia"
+
+
+class OrderSide(Enum):
+    BUY = "buy"
+    SELL = "sell"
+
+class OrderStatus(Enum):
+    PENDING = "pending"
+    COMPLETED = "completed"
+    FAILED = "failed"

@@ -1,4 +1,6 @@
 from sqlalchemy import (
+    Enum,
+    Float,
     Column,
     Integer,
     String,
@@ -11,6 +13,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.orm import DeclarativeBase, relationship
+from api.commons.enums import OrderSide, OrderStatus
 
 
 class Base(DeclarativeBase):
@@ -81,6 +84,8 @@ class DematApi(Base):
         foreign_keys="DematApiSubscription.target_id",
     )
 
+    orders = relationship("Order", back_populates="api")
+
 
 class DematApiSubscription(Base):
     __tablename__ = "demat_api_subscriptions"
@@ -88,7 +93,7 @@ class DematApiSubscription(Base):
     id = Column(Integer, primary_key=True)
     subscriber_id = Column(Integer, ForeignKey("demat_apis.id", ondelete="CASCADE"))
     target_id = Column(Integer, ForeignKey("demat_apis.id", ondelete="CASCADE"))
-    multiplier = Column(Integer, nullable=False)
+    multiplier = Column(Integer, nullable=False, default=1)
     is_active = Column(Boolean, default=True)
 
     subscriber = relationship(
@@ -123,3 +128,28 @@ class StrategySubscription(Base):
         UniqueConstraint("subscriber_id", "target_id", name="uq_strategy_subscription"),
     )
 
+
+class Order(Base):
+    __tablename__ = "orders"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tag = Column(String(20), index=True)
+    instrument_token = Column(String(12), nullable=False)
+    trading_symbol = Column(String(50), nullable=False)
+    side = Column(Enum(OrderSide), nullable=False)
+    quantity = Column(Integer, nullable=False)
+    price = Column(Float, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    status = Column(String(20), nullable=False, default=OrderStatus.PENDING.value)
+    broker_order_id = Column(Text, nullable=True)
+    filled_quantity = Column(Integer, default=0)
+    average_price = Column(Float, default=0)
+    error_code = Column(String(5), nullable=True)
+    error_message = Column(Text, nullable=True)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    meta_data = Column(Text, nullable=True)
+
+    api_id = Column(
+        Integer, ForeignKey("demat_apis.id", ondelete="SET NULL"), nullable=True
+    )
+    api = relationship("DematApi", back_populates="orders")

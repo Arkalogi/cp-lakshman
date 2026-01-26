@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from api.commons import enums
 from api.data import database, models
-from api.demat_apis import upstox
+from api.demat_apis.upstox import UpstoxApi
 
 _running_target_ids = set()
 logger = logging.getLogger(__name__)
@@ -43,7 +43,19 @@ async def thread_spawn_loop():
                         continue
 
                     logger.info("Starting order updates for target_id=%s", target.id)
-                    task = asyncio.create_task(upstox.start(target_api_config))
+                    upstox_api = UpstoxApi(
+                        api_key=target_api_config.get("api_key"),
+                        api_secret=target_api_config.get("api_secret"),
+                        redirect_url=target_api_config.get("redirect_url"),
+                        mobile_number=target_api_config.get("mobile_number"),
+                        totp_secret=target_api_config.get("totp_secret"),
+                        pin=target_api_config.get("pin"),
+                    )
+                    access_token = target_api_config.get("access_token")
+                    task = asyncio.create_task(
+                        upstox_api.start_order_update_socket(access_token)
+                    )
+                    
                     _running_target_ids.add(target.id)
                     task.add_done_callback(
                         lambda _, target_id=target.id: _running_target_ids.discard(
