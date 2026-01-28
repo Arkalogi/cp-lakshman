@@ -24,8 +24,8 @@ def generate_trading_symbol(
     underlying: str,
     instrument_type: str,
     expiry: str,
-    strike: float = 0.0,
-    option_type: str = "",
+    strike: float,
+    option_type: str,
 ) -> str:
     if instrument_type == "EQ":
         return f"{exchange}-{underlying}"

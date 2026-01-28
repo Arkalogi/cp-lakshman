@@ -10,6 +10,8 @@ from api.strategy_subscriptions.routes import router as strategy_subscriptions_r
 from api.users.routes import router as users_router
 from api.orders.routes import router as orders_router
 from api.workers import order_generator, allocator
+from api.data.utils import load_master_data
+from api.data.local import MASTER_DATA, TOKEN_MAP
 
 logging.basicConfig(
     level=logging.INFO,
@@ -40,6 +42,10 @@ app.include_router(orders_router)
 
 @app.on_event("startup")
 async def start_workers():
+    logger.info("Loading master data")
+    await load_master_data()
+    app.state.master_data = MASTER_DATA
+    app.state.token_map = TOKEN_MAP
     logger.info("Starting worker tasks")
     app.state.order_generator_task = asyncio.create_task(
         order_generator.thread_spawn_loop()
