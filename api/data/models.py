@@ -122,6 +122,7 @@ class StrategySubscription(Base):
     id = Column(Integer, primary_key=True)
     subscriber_id = Column(Integer, ForeignKey("demat_apis.id", ondelete="CASCADE"))
     target_id = Column(Integer, ForeignKey("strategies.id", ondelete="CASCADE"))
+    multiplier = Column(Integer, nullable=False, default=1)
 
     subscriber = relationship(
         "DematApi", back_populates="strategy_subscriptions", foreign_keys=[subscriber_id]
