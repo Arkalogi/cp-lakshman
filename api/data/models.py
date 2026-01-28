@@ -13,7 +13,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.orm import DeclarativeBase, relationship
-from api.commons.enums import OrderSide, OrderStatus
+from api.commons.enums import Exchange, InstrumentType, OptionType, OrderSide, OrderStatus
 
 
 class Base(DeclarativeBase):
@@ -86,7 +86,9 @@ class DematApi(Base):
 
     orders = relationship("Order", back_populates="api")
     subscriber_orders = relationship(
-        "SubscriberOrder", back_populates="subscriber", foreign_keys="SubscriberOrder.subscriber_id"
+        "SubscriberOrder",
+        back_populates="subscriber",
+        foreign_keys="SubscriberOrder.subscriber_id",
     )
 
 
@@ -137,7 +139,7 @@ class Order(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     tag = Column(String(50), index=True)
-    instrument_token = Column(String(12), nullable=False)
+    instrument_id = Column(String(12), nullable=False)
     trading_symbol = Column(String(50), nullable=False)
     side = Column(Enum(OrderSide), nullable=False)
     quantity = Column(Integer, nullable=False)
@@ -157,7 +159,9 @@ class Order(Base):
     )
     api = relationship("DematApi", back_populates="orders")
     subscriber_orders = relationship(
-        "SubscriberOrder", back_populates="parent_order", foreign_keys="SubscriberOrder.parent_order_id"
+        "SubscriberOrder",
+        back_populates="parent_order",
+        foreign_keys="SubscriberOrder.parent_order_id",
     )
 
 
@@ -165,9 +169,13 @@ class SubscriberOrder(Base):
     __tablename__ = "subscriber_orders"
 
     id = Column(Integer, primary_key=True, index=True)
-    parent_order_id = Column(Integer, ForeignKey("orders.id", ondelete="SET NULL"), nullable=True)
+    parent_order_id = Column(
+        Integer, ForeignKey("orders.id", ondelete="SET NULL"), nullable=True
+    )
     parent_tag = Column(String(36), index=True, nullable=False)
-    subscriber_id = Column(Integer, ForeignKey("demat_apis.id", ondelete="CASCADE"), nullable=False)
+    subscriber_id = Column(
+        Integer, ForeignKey("demat_apis.id", ondelete="CASCADE"), nullable=False
+    )
     quantity = Column(Integer, nullable=False)
     status = Column(String(20), nullable=False, default=OrderStatus.PENDING.value)
     broker_order_id = Column(Text, nullable=True)
@@ -175,5 +183,25 @@ class SubscriberOrder(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     meta_data = Column(Text, nullable=True)
 
-    parent_order = relationship("Order", back_populates="subscriber_orders", foreign_keys=[parent_order_id])
-    subscriber = relationship("DematApi", back_populates="subscriber_orders", foreign_keys=[subscriber_id])
+    parent_order = relationship(
+        "Order", back_populates="subscriber_orders", foreign_keys=[parent_order_id]
+    )
+    subscriber = relationship(
+        "DematApi", back_populates="subscriber_orders", foreign_keys=[subscriber_id]
+    )
+
+
+class Instrument(Base):
+    __tablename__ = "instruments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    instrument_id = Column(String(12), nullable=False, unique=True)
+    exchange = Column(Enum(Exchange), nullable=False)
+    trading_symbol = Column(String(100), nullable=False)
+    underlying = Column(String(50), nullable=False)
+    instrument_type = Column(Enum(InstrumentType), nullable=False)
+    lot_size = Column(String(10), nullable=False)
+    freeze_quantity = Column(Integer, nullable=False, default=0)
+    expiry = Column(String(10), nullable=True)
+    strike = Column(Float, nullable=True)
+    option_type = Column(Enum(OptionType), nullable=True)

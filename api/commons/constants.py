@@ -1,0 +1,1 @@
+ZERODHA_MASTER_DATA_URL = "https://api.kite.trade/instruments"
