@@ -52,11 +52,6 @@ class Strategy(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
     user = relationship("User", back_populates="strategies", foreign_keys=[user_id])
 
-    subscriptions = relationship(
-        "StrategySubscription",
-        back_populates="subscriber",
-        foreign_keys="StrategySubscription.subscriber_id",
-    )
     followers = relationship(
         "StrategySubscription",
         back_populates="target",
@@ -91,6 +86,12 @@ class DematApi(Base):
         foreign_keys="SubscriberOrder.subscriber_id",
     )
 
+    strategy_subscriptions = relationship(
+        "StrategySubscription",
+        back_populates="subscriber",
+        foreign_keys="StrategySubscription.subscriber_id",
+    )
+
 
 class DematApiSubscription(Base):
     __tablename__ = "demat_api_subscriptions"
@@ -119,11 +120,11 @@ class StrategySubscription(Base):
     __tablename__ = "strategy_subscriptions"
 
     id = Column(Integer, primary_key=True)
-    subscriber_id = Column(Integer, ForeignKey("strategies.id", ondelete="CASCADE"))
+    subscriber_id = Column(Integer, ForeignKey("demat_apis.id", ondelete="CASCADE"))
     target_id = Column(Integer, ForeignKey("strategies.id", ondelete="CASCADE"))
 
     subscriber = relationship(
-        "Strategy", back_populates="subscriptions", foreign_keys=[subscriber_id]
+        "DematApi", back_populates="strategy_subscriptions", foreign_keys=[subscriber_id]
     )
     target = relationship(
         "Strategy", back_populates="followers", foreign_keys=[target_id]
@@ -205,3 +206,19 @@ class Instrument(Base):
     expiry = Column(String(10), nullable=True)
     strike = Column(Float, nullable=True)
     option_type = Column(Enum(OptionType), nullable=True)
+
+
+class Signal(Base):
+    __tablename__ = "signals"
+
+    id = Column(Integer, primary_key=True, index=True)
+    strategy_id = Column(Integer, ForeignKey("strategies.id", ondelete="CASCADE"))
+    instrument_id = Column(String(12), nullable=False)
+    trading_symbol = Column(String(100), nullable=False)
+    side = Column(Enum(OrderSide), nullable=False)
+    quantity = Column(Integer, nullable=False)
+    price = Column(Float, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    meta_data = Column(Text, nullable=True)
+
+    strategy = relationship("Strategy", foreign_keys=[strategy_id])
