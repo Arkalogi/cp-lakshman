@@ -9,6 +9,7 @@ from api.strategies.routes import router as strategies_router
 from api.strategy_subscriptions.routes import router as strategy_subscriptions_router
 from api.users.routes import router as users_router
 from api.orders.routes import router as orders_router
+from api.master_data.routes import router as master_data_router
 from api.workers import order_generator, allocator
 from api.data.utils import load_master_data
 from api.data.local import MASTER_DATA, TOKEN_MAP
@@ -38,6 +39,7 @@ app.include_router(demat_apis_router)
 app.include_router(demat_api_subscriptions_router)
 app.include_router(strategy_subscriptions_router)
 app.include_router(orders_router)
+app.include_router(master_data_router)
 
 
 @app.on_event("startup")
