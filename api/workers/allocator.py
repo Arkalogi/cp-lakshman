@@ -50,17 +50,6 @@ async def thread_spawn_loop():
                             routed_signal, separators=(",", ":"), ensure_ascii=True
                         ),
                     )
-                    subscriber_order = models.SubscriberOrder(
-                        parent_order_id=parent_order.id if parent_order else None,
-                        parent_tag=parent_tag or "",
-                        subscriber_id=demat_api_subscription.subscriber_id,
-                        quantity=int(quantity),
-                        status=order_signal.get("status") or "",
-                        meta_data=json.dumps(
-                            routed_signal, separators=(",", ":"), ensure_ascii=True
-                        ),
-                    )
-                    db.add(subscriber_order)
                 await db.commit()
         except Exception:
             logger.exception("Allocator failed to process order signal.")

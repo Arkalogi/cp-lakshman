@@ -1,4 +1,4 @@
-from sqlalchemy import select, or_, func
+from sqlalchemy import select, func
 
 from api.commons import enums
 from api.commons.schemas import ResponseSchema
@@ -41,25 +41,3 @@ async def get_order_data(order_id: int):
             message="Order fetched",
         )
 
-
-async def list_subscriber_orders_data(order_id: int):
-    async with database.DbAsyncSession() as db:
-        result = await db.execute(select(models.Order).where(models.Order.id == order_id))
-        order = result.scalars().one_or_none()
-        if not order:
-            return ResponseSchema(status=enums.ResponseStatus.ERROR, message="Order not found")
-
-        subscriber_result = await db.execute(
-            select(models.SubscriberOrder).where(
-                or_(
-                    models.SubscriberOrder.parent_order_id == order.id,
-                    models.SubscriberOrder.parent_tag == order.tag,
-                )
-            )
-        )
-        subscriber_orders = subscriber_result.scalars().all()
-        return ResponseSchema(
-            status=enums.ResponseStatus.SUCCESS,
-            data=model_list_to_dict(subscriber_orders),
-            message="Subscriber orders fetched",
-        )

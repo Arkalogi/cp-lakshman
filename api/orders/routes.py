@@ -21,10 +21,3 @@ async def get_order(order_id: int):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
-@router.get("/{order_id}/subscriber-orders", response_model=ResponseSchema)
-async def list_subscriber_orders(order_id: int):
-    try:
-        return await service.list_subscriber_orders_data(order_id)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
