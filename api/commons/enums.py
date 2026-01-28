@@ -10,12 +10,14 @@ class ApiProvider(Enum):
     UPSTOX = "upstox"
     KITE = "kite"
     SHOONYA = "shoonya"
+    PAPER = "paper"
 
 
 class DematProvider(Enum):
     UPSTOX = "upstox"
     ZERODHA = "zerodha"
     FINVASIA = "finvasia"
+    ARKALOGI = "arkalogi"
 
 
 class OrderSide(Enum):

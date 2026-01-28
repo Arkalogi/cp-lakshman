@@ -6,8 +6,8 @@ from api.commons import enums
 
 
 class DematApiConfigSchema(BaseModel):
-    api_provider: enums.ApiProvider
-    demat_provider: enums.DematProvider
+    api_provider: enums.ApiProvider = enums.ApiProvider.PAPER
+    demat_provider: enums.DematProvider = enums.DematProvider.ARKALOGI
     api_key: Optional[str]
     api_secret: Optional[str]
     mobile_number: Optional[str]
@@ -21,7 +21,7 @@ class DematApiConfigSchema(BaseModel):
             self.demat_provider == enums.DematProvider.UPSTOX
             and self.api_provider != enums.ApiProvider.UPSTOX
         ):
-            raise ValueError("ZERODHA must use KITE api_provider")
+            raise ValueError("UPSTOX must use UPSTOX api_provider")
         if (
             self.demat_provider == enums.DematProvider.ZERODHA
             and self.api_provider != enums.ApiProvider.KITE
@@ -32,6 +32,11 @@ class DematApiConfigSchema(BaseModel):
             and self.api_provider != enums.ApiProvider.SHOONYA
         ):
             raise ValueError("FINVASIA must use SHOONYA api_provider")
+        if (
+            self.demat_provider == enums.DematProvider.ARKALOGI
+            and self.api_provider != enums.ApiProvider.PAPER
+        ):
+            raise ValueError("ARKALOGI must use PAPER api_provider")
         return self
 
 

@@ -17,6 +17,9 @@ async def add_demat_api_data(api_data: DematApiCreateSchema):
         logger.info(config)
         if hasattr(config, "model_dump"):
             config = config.model_dump(mode="json")
+        if isinstance(config, dict):
+            config["api_provider"] = enums.ApiProvider.PAPER.value
+            config["demat_provider"] = enums.DematProvider.ARKALOGI.value
         new_api = models.DematApi(
             config=config,
             user_id=api_data.user_id,
@@ -65,6 +68,9 @@ async def update_demat_api_data(api_id: int, api_data: DematApiUpdateSchema):
         update_data = update_dict_from_schema(api_data)
         if "config" in update_data and hasattr(update_data["config"], "model_dump"):
             update_data["config"] = update_data["config"].model_dump(mode="json")
+        if "config" in update_data and isinstance(update_data["config"], dict):
+            update_data["config"]["api_provider"] = enums.ApiProvider.PAPER.value
+            update_data["config"]["demat_provider"] = enums.DematProvider.ARKALOGI.value
         for key, value in update_data.items():
             setattr(demat_api, key, value)
 
