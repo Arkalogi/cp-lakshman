@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import logging
 import requests
@@ -40,9 +41,9 @@ def download_xts_master_data():
         "Content-Type": "application/json",
     }
     payload = {
-        "exchangeSegmentList": ["NSEFO", "NSECM", "BSECM", "NSECD"],
+        "exchangeSegmentList": ["NSEFO", "NSECM", "BSECM", "BSEFO"],
     }
-    response = requests.get(XTS_MASTER_DATA_URL, headers=HEADERS, data=payload)
+    response = requests.post(XTS_MASTER_DATA_URL, headers=HEADERS, data=json.dumps(payload))
     if response.status_code == 200:
         return response.json()["result"].strip()
     else:
@@ -81,7 +82,7 @@ def parser_xts_master_data(master_data: str) -> List[Instrument]:
         if line.strip() == "":
             continue
         parts = line.split("|")
-        exchange = parts[EXCHANGE_INDEX]
+        exchange = parts[EXCHANGE_INDEX].lower()
         if exchange not in Exchange._value2member_map_:
             continue
         exchange_enum = Exchange(exchange)
@@ -116,20 +117,20 @@ def parser_xts_master_data(master_data: str) -> List[Instrument]:
             except ValueError:
                 strike_price = 0.0
         try:
-            freeze_qty = int(parts[FREEZE_QTY_COLUMN])
+            freeze_qty = int(parts[FREEZE_QTY_COLUMN]) - 1 if exchange_enum in [Exchange.NSEFO, Exchange.NSECM] else int(parts[FREEZE_QTY_COLUMN])
         except (ValueError, TypeError):
             freeze_qty = 0
-        option_type_value = option_type_enum.value if option_type_enum else None
+        option_type_name = option_type_enum.name if option_type_enum else None
         instrument = Instrument(
             instrument_id=instrument_id,
             exchange=exchange_enum,
             trading_symbol=generate_trading_symbol(
-                exchange=exchange_enum.value,
+                exchange=exchange_enum.name,
                 underlying=underlying,
-                instrument_type=instrument_type_enum.value,
+                instrument_type=instrument_type_enum.name,
                 expiry=expiry_int,
                 strike=strike_price,
-                option_type=option_type_value,
+                option_type=option_type_name,
             ),
             underlying=underlying,
             instrument_type=instrument_type_enum,
