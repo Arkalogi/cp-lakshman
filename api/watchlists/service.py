@@ -15,7 +15,7 @@ async def add_watchlist_data(watchlist_data: WatchlistCreateSchema):
         new_watchlist = models.Watchlist(
             name=watchlist_data.name,
             description=watchlist_data.description,
-            user_id=watchlist_data.user_id,
+            instruments=watchlist_data.instruments or [],
         )
         db.add(new_watchlist)
         await db.commit()
@@ -54,7 +54,10 @@ async def update_watchlist_data(watchlist_id: int, watchlist_data: WatchlistUpda
         watchlist = result.scalars().one_or_none()
         if not watchlist:
             return ResponseSchema(status=enums.ResponseStatus.ERROR, message="Watchlist not found")
-        update_dict_from_schema(watchlist, watchlist_data)
+        update_data = update_dict_from_schema(watchlist_data)
+        for key, value in update_data.items():
+            if value is not None:
+                setattr(watchlist, key, value)
         db.add(watchlist)
         await db.commit()
         await db.refresh(watchlist)
@@ -89,14 +92,17 @@ async def add_instrument_to_watchlist(watchlist_id: int, instrument_id: int):
         instrument = result.scalars().one_or_none()
         if not instrument:
             return ResponseSchema(status=enums.ResponseStatus.ERROR, message="Instrument not found")
-        
-        if instrument in watchlist.instruments:
+
+        if watchlist.instruments is None:
+            watchlist.instruments = []
+
+        if instrument.id in watchlist.instruments or str(instrument.id) in watchlist.instruments:
             return ResponseSchema(
                 status=enums.ResponseStatus.ERROR,
                 message="Instrument already in watchlist",
             )
-        
-        watchlist.instruments.append(instrument)
+
+        watchlist.instruments.append(instrument.id)
         db.add(watchlist)
         await db.commit()
         await db.refresh(watchlist)
