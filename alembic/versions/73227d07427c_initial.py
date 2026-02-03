@@ -1,8 +1,8 @@
 """initial
 
-Revision ID: 3245e236cf8d
+Revision ID: 73227d07427c
 Revises: 
-Create Date: 2026-01-28 15:41:13.562730
+Create Date: 2026-02-03 22:04:40.561853
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '3245e236cf8d'
+revision: str = '73227d07427c'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -53,6 +53,16 @@ def upgrade() -> None:
     op.create_index(op.f('ix_users_id'), 'users', ['id'], unique=False)
     op.create_index(op.f('ix_users_phone'), 'users', ['phone'], unique=True)
     op.create_index(op.f('ix_users_username'), 'users', ['username'], unique=True)
+    op.create_table('watchlists',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('name', sa.String(length=50), nullable=False),
+    sa.Column('description', sa.Text(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('name')
+    )
+    op.create_index(op.f('ix_watchlists_id'), 'watchlists', ['id'], unique=False)
     op.create_table('demat_apis',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('config', sa.JSON(), nullable=True),
@@ -70,16 +80,36 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('name')
     )
-    op.create_table('demat_api_subscriptions',
+    op.create_table('watchlist_instruments',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('watchlist_id', sa.Integer(), nullable=True),
+    sa.Column('instrument_id', sa.String(length=12), nullable=False),
+    sa.ForeignKeyConstraint(['watchlist_id'], ['watchlists.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('watchlist_id', 'instrument_id', name='uq_watchlist_instrument')
+    )
+    op.create_index(op.f('ix_watchlist_instruments_id'), 'watchlist_instruments', ['id'], unique=False)
+    op.create_table('signals',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('strategy_id', sa.Integer(), nullable=True),
+    sa.Column('instrument_id', sa.String(length=12), nullable=False),
+    sa.Column('trading_symbol', sa.String(length=100), nullable=False),
+    sa.Column('side', sa.Enum('BUY', 'SELL', name='orderside'), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+    sa.Column('meta_data', sa.Text(), nullable=True),
+    sa.ForeignKeyConstraint(['strategy_id'], ['strategies.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_signals_id'), 'signals', ['id'], unique=False)
+    op.create_table('strategy_subscriptions',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('subscriber_id', sa.Integer(), nullable=True),
     sa.Column('target_id', sa.Integer(), nullable=True),
     sa.Column('multiplier', sa.Integer(), nullable=False),
-    sa.Column('is_active', sa.Boolean(), nullable=True),
     sa.ForeignKeyConstraint(['subscriber_id'], ['demat_apis.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['target_id'], ['demat_apis.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['target_id'], ['strategies.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('subscriber_id', 'target_id', name='uq_demat_api_subscription')
+    sa.UniqueConstraint('subscriber_id', 'target_id', name='uq_strategy_subscription')
     )
     op.create_table('orders',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -98,71 +128,37 @@ def upgrade() -> None:
     sa.Column('error_message', sa.Text(), nullable=True),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('meta_data', sa.Text(), nullable=True),
-    sa.Column('api_id', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['api_id'], ['demat_apis.id'], ondelete='SET NULL'),
+    sa.Column('parent_order_id', sa.Integer(), nullable=True),
+    sa.Column('parent_tag', sa.String(length=36), nullable=True),
+    sa.Column('signal_id', sa.Integer(), nullable=True),
+    sa.Column('demat_api_id', sa.Integer(), nullable=True),
+    sa.ForeignKeyConstraint(['demat_api_id'], ['demat_apis.id'], ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['parent_order_id'], ['orders.id'], ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['signal_id'], ['signals.id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_orders_id'), 'orders', ['id'], unique=False)
+    op.create_index(op.f('ix_orders_parent_tag'), 'orders', ['parent_tag'], unique=False)
     op.create_index(op.f('ix_orders_tag'), 'orders', ['tag'], unique=False)
-    op.create_table('signals',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('strategy_id', sa.Integer(), nullable=True),
-    sa.Column('instrument_id', sa.String(length=12), nullable=False),
-    sa.Column('trading_symbol', sa.String(length=100), nullable=False),
-    sa.Column('side', sa.Enum('BUY', 'SELL', name='orderside'), nullable=False),
-    sa.Column('quantity', sa.Integer(), nullable=False),
-    sa.Column('price', sa.Float(), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
-    sa.Column('meta_data', sa.Text(), nullable=True),
-    sa.ForeignKeyConstraint(['strategy_id'], ['strategies.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_signals_id'), 'signals', ['id'], unique=False)
-    op.create_table('strategy_subscriptions',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('subscriber_id', sa.Integer(), nullable=True),
-    sa.Column('target_id', sa.Integer(), nullable=True),
-    sa.Column('multiplier', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['subscriber_id'], ['demat_apis.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['target_id'], ['strategies.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('subscriber_id', 'target_id', name='uq_strategy_subscription')
-    )
-    op.create_table('subscriber_orders',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('parent_order_id', sa.Integer(), nullable=True),
-    sa.Column('parent_tag', sa.String(length=36), nullable=False),
-    sa.Column('subscriber_id', sa.Integer(), nullable=False),
-    sa.Column('quantity', sa.Integer(), nullable=False),
-    sa.Column('status', sa.String(length=20), nullable=False),
-    sa.Column('broker_order_id', sa.Text(), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('meta_data', sa.Text(), nullable=True),
-    sa.ForeignKeyConstraint(['parent_order_id'], ['orders.id'], ondelete='SET NULL'),
-    sa.ForeignKeyConstraint(['subscriber_id'], ['demat_apis.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_subscriber_orders_id'), 'subscriber_orders', ['id'], unique=False)
-    op.create_index(op.f('ix_subscriber_orders_parent_tag'), 'subscriber_orders', ['parent_tag'], unique=False)
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
-    op.drop_index(op.f('ix_subscriber_orders_parent_tag'), table_name='subscriber_orders')
-    op.drop_index(op.f('ix_subscriber_orders_id'), table_name='subscriber_orders')
-    op.drop_table('subscriber_orders')
+    op.drop_index(op.f('ix_orders_tag'), table_name='orders')
+    op.drop_index(op.f('ix_orders_parent_tag'), table_name='orders')
+    op.drop_index(op.f('ix_orders_id'), table_name='orders')
+    op.drop_table('orders')
     op.drop_table('strategy_subscriptions')
     op.drop_index(op.f('ix_signals_id'), table_name='signals')
     op.drop_table('signals')
-    op.drop_index(op.f('ix_orders_tag'), table_name='orders')
-    op.drop_index(op.f('ix_orders_id'), table_name='orders')
-    op.drop_table('orders')
-    op.drop_table('demat_api_subscriptions')
+    op.drop_index(op.f('ix_watchlist_instruments_id'), table_name='watchlist_instruments')
+    op.drop_table('watchlist_instruments')
     op.drop_table('strategies')
     op.drop_table('demat_apis')
+    op.drop_index(op.f('ix_watchlists_id'), table_name='watchlists')
+    op.drop_table('watchlists')
     op.drop_index(op.f('ix_users_username'), table_name='users')
     op.drop_index(op.f('ix_users_phone'), table_name='users')
     op.drop_index(op.f('ix_users_id'), table_name='users')
