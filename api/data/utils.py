@@ -3,7 +3,7 @@ import json
 import os
 import logging
 import requests
-from typing import Iterable, List
+from typing import Iterable, List, Optional
 from sqlalchemy import insert, select
 from api.data.local import MASTER_DATA, TOKEN_MAP
 from api.data.models import Instrument
@@ -212,4 +212,7 @@ async def load_master_data():
         logger.exception("Error loading master data: %s", e)
         await _load_master_cache_from_db()
         return
+    
+def get_instrument_by_id(instrument_id: str) -> Optional[Instrument]:
+    return MASTER_DATA.get(instrument_id)
 
