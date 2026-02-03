@@ -13,7 +13,13 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.orm import DeclarativeBase, relationship
-from api.commons.enums import Exchange, InstrumentType, OptionType, OrderSide, OrderStatus
+from api.commons.enums import (
+    Exchange,
+    InstrumentType,
+    OptionType,
+    OrderSide,
+    OrderStatus,
+)
 
 
 class Base(DeclarativeBase):
@@ -119,7 +125,9 @@ class StrategySubscription(Base):
     multiplier = Column(Integer, nullable=False, default=1)
 
     subscriber = relationship(
-        "DematApi", back_populates="strategy_subscriptions", foreign_keys=[subscriber_id]
+        "DematApi",
+        back_populates="strategy_subscriptions",
+        foreign_keys=[subscriber_id],
     )
     target = relationship(
         "Strategy", back_populates="followers", foreign_keys=[target_id]
@@ -153,7 +161,9 @@ class Order(Base):
         Integer, ForeignKey("orders.id", ondelete="SET NULL"), nullable=True
     )
     parent_tag = Column(String(36), index=True, nullable=True)
-    signal_id = Column(Integer, ForeignKey("signals.id", ondelete="SET NULL"), nullable=True)
+    signal_id = Column(
+        Integer, ForeignKey("signals.id", ondelete="SET NULL"), nullable=True
+    )
 
     api_id = Column(
         Integer, ForeignKey("demat_apis.id", ondelete="SET NULL"), nullable=True
@@ -191,3 +201,29 @@ class Signal(Base):
     meta_data = Column(Text, nullable=True)
 
     strategy = relationship("Strategy", foreign_keys=[strategy_id])
+
+
+class Watchlist(Base):
+    __tablename__ = "watchlists"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(50), unique=True, nullable=False)
+    description = Column(Text, nullable=True)
+    instruments = Column(JSON, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class WatchlistInstrument(Base):
+    __tablename__ = "watchlist_instruments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    watchlist_id = Column(Integer, ForeignKey("watchlists.id", ondelete="CASCADE"))
+    instrument_id = Column(String(12), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "watchlist_id", "instrument_id", name="uq_watchlist_instrument"
+        ),
+    )
+    
