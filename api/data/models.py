@@ -75,45 +75,11 @@ class DematApi(Base):
 
     user = relationship("User", back_populates="demat_apis", foreign_keys=[user_id])
 
-    subscriptions = relationship(
-        "DematApiSubscription",
-        back_populates="subscriber",
-        foreign_keys="DematApiSubscription.subscriber_id",
-    )
-    followers = relationship(
-        "DematApiSubscription",
-        back_populates="target",
-        foreign_keys="DematApiSubscription.target_id",
-    )
-
     orders = relationship("Order", back_populates="demat_api")
     strategy_subscriptions = relationship(
         "StrategySubscription",
         back_populates="subscriber",
         foreign_keys="StrategySubscription.subscriber_id",
-    )
-
-
-class DematApiSubscription(Base):
-    __tablename__ = "demat_api_subscriptions"
-
-    id = Column(Integer, primary_key=True)
-    subscriber_id = Column(Integer, ForeignKey("demat_apis.id", ondelete="CASCADE"))
-    target_id = Column(Integer, ForeignKey("demat_apis.id", ondelete="CASCADE"))
-    multiplier = Column(Integer, nullable=False, default=1)
-    is_active = Column(Boolean, default=True)
-
-    subscriber = relationship(
-        "DematApi", back_populates="subscriptions", foreign_keys=[subscriber_id]
-    )
-    target = relationship(
-        "DematApi", back_populates="followers", foreign_keys=[target_id]
-    )
-
-    __table_args__ = (
-        UniqueConstraint(
-            "subscriber_id", "target_id", name="uq_demat_api_subscription"
-        ),
     )
 
 
