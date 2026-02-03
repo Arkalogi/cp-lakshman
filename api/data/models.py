@@ -63,6 +63,7 @@ class Strategy(Base):
         back_populates="target",
         foreign_keys="StrategySubscription.target_id",
     )
+    signals = relationship("Signal", back_populates="strategy")
 
 
 class DematApi(Base):
@@ -165,10 +166,10 @@ class Order(Base):
         Integer, ForeignKey("signals.id", ondelete="SET NULL"), nullable=True
     )
 
-    api_id = Column(
+    demat_api_id = Column(
         Integer, ForeignKey("demat_apis.id", ondelete="SET NULL"), nullable=True
     )
-    api = relationship("DematApi", back_populates="orders")
+    demat_api = relationship("DematApi", back_populates="orders")
 
 
 class Instrument(Base):
@@ -195,8 +196,6 @@ class Signal(Base):
     instrument_id = Column(String(12), nullable=False)
     trading_symbol = Column(String(100), nullable=False)
     side = Column(Enum(OrderSide), nullable=False)
-    quantity = Column(Integer, nullable=False)
-    price = Column(Float, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     meta_data = Column(Text, nullable=True)
 
@@ -209,7 +208,6 @@ class Watchlist(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(50), unique=True, nullable=False)
     description = Column(Text, nullable=True)
-    instruments = Column(JSON, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -226,4 +224,4 @@ class WatchlistInstrument(Base):
             "watchlist_id", "instrument_id", name="uq_watchlist_instrument"
         ),
     )
-    
+
