@@ -86,7 +86,7 @@ class DematApi(Base):
         foreign_keys="DematApiSubscription.target_id",
     )
 
-    orders = relationship("Order", back_populates="api")
+    orders = relationship("Order", back_populates="demat_api")
     strategy_subscriptions = relationship(
         "StrategySubscription",
         back_populates="subscriber",
