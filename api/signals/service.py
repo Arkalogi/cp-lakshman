@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 from api.commons import enums
 from api.commons.schemas import ResponseSchema
 from api.commons.utils import model_list_to_dict, model_to_dict
-from api.data import database, models, utils
+from api.data import database, models, red, utils
 from api.demat_apis.paper import PaperAPI
 from api.signals.schemas import SignalCreateSchema
 
@@ -33,6 +33,21 @@ async def add_signal_data(signal_data: SignalCreateSchema):
         db.add(signal)
         await db.commit()
         await db.refresh(signal)
+        try:
+            order_signal = {
+                "signal_id": signal.id,
+                "target_id": signal.strategy_id,
+                "instrument_id": signal.instrument_id,
+                "trading_symbol": signal.trading_symbol,
+                "side": signal.side.value,
+                "meta_data": signal.meta_data,
+            }
+            await red.get_async_redis().rpush(
+                red.ORDER_SIGNAL_LIST,
+                json.dumps(order_signal, separators=(",", ":"), ensure_ascii=True),
+            )
+        except Exception:
+            logger.exception("Failed to enqueue signal %s", signal.id)
         return ResponseSchema(
             status=enums.ResponseStatus.SUCCESS,
             data=model_to_dict(signal),
