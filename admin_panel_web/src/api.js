@@ -72,6 +72,20 @@ export async function listMasterData(baseUrl) {
   return Array.isArray(payload.items) ? payload.items : [];
 }
 
+export async function searchMasterData(baseUrl, query, limit = 200) {
+  const params = new URLSearchParams();
+  if (query) {
+    params.set("q", query);
+  }
+  if (limit) {
+    params.set("limit", String(limit));
+  }
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  const data = await request(baseUrl, `/master-data/${suffix}`);
+  const payload = data?.data || {};
+  return Array.isArray(payload.items) ? payload.items : [];
+}
+
 export async function listSignalOrders(baseUrl, signalId, status) {
   const query = status ? `?status=${encodeURIComponent(status)}` : "";
   const data = await request(baseUrl, `/signals/${signalId}/orders${query}`);

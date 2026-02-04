@@ -1,5 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { listMasterData, listSignalOrders, updateOrderStatus } from "../api.js";
+import {
+  listMasterData,
+  listSignalOrders,
+  searchMasterData,
+  updateOrderStatus,
+} from "../api.js";
 
 const EMPTY_FORM = {
   strategy_id: "1",
@@ -24,6 +29,7 @@ export default function SignalsSection({ signals, baseUrl, onCreate, onRefresh, 
   const [form, setForm] = useState(EMPTY_FORM);
   const [instruments, setInstruments] = useState([]);
   const [instrumentQuery, setInstrumentQuery] = useState("");
+  const [instrumentResults, setInstrumentResults] = useState([]);
   const [expandedSignalId, setExpandedSignalId] = useState(null);
   const [childOrdersBySignalId, setChildOrdersBySignalId] = useState({});
   const [loadingSignalId, setLoadingSignalId] = useState(null);
@@ -58,20 +64,42 @@ export default function SignalsSection({ signals, baseUrl, onCreate, onRefresh, 
     };
   }, [baseUrl, onError]);
 
+  useEffect(() => {
+    if (!baseUrl) {
+      return;
+    }
+    const query = instrumentQuery.trim();
+    if (!query) {
+      setInstrumentResults([]);
+      return;
+    }
+    let cancelled = false;
+    const timeout = window.setTimeout(() => {
+      searchMasterData(baseUrl, query, 200)
+        .then((items) => {
+          if (!cancelled) {
+            setInstrumentResults(items);
+          }
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            onError?.(error.message || "Failed to search master data.");
+          }
+        });
+    }, 200);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [baseUrl, instrumentQuery, onError]);
+
   const filteredInstruments = useMemo(() => {
     const query = instrumentQuery.trim().toLowerCase();
     if (!query) {
       return instruments.slice(0, 100);
     }
-    return instruments
-      .filter((item) => {
-        const idMatch = String(item.instrument_id || "").toLowerCase().includes(query);
-        const symbolMatch = String(item.trading_symbol || "").toLowerCase().includes(query);
-        const underlyingMatch = String(item.underlying || "").toLowerCase().includes(query);
-        return idMatch || symbolMatch || underlyingMatch;
-      })
-      .slice(0, 200);
-  }, [instrumentQuery, instruments]);
+    return instrumentResults;
+  }, [instrumentQuery, instruments, instrumentResults]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();

@@ -54,24 +54,40 @@ def _filter_instruments(
 
 @router.get("/", response_model=ResponseSchema)
 async def list_master_data(
+    q: Optional[str] = None,
     exchange: Optional[str] = None,
     instrument_type: Optional[str] = None,
     underlying: Optional[str] = None,
     trading_symbol: Optional[str] = None,
     instrument_id: Optional[str] = None,
+    limit: int = 200,
 ):
     if not MASTER_DATA:
         return ResponseSchema(
             status=enums.ResponseStatus.ERROR,
             message="Master data not loaded",
         )
-    instruments = _filter_instruments(
-        instrument_id=instrument_id,
-        trading_symbol=trading_symbol,
-        exchange=exchange,
-        instrument_type=instrument_type,
-        underlying=underlying,
-    )
+    if q:
+        query = q.lower()
+        instruments = [
+            instrument
+            for instrument in MASTER_DATA.values()
+            if (
+                query in (instrument.instrument_id or "").lower()
+                or query in (instrument.trading_symbol or "").lower()
+                or query in (instrument.underlying or "").lower()
+            )
+        ]
+    else:
+        instruments = _filter_instruments(
+            instrument_id=instrument_id,
+            trading_symbol=trading_symbol,
+            exchange=exchange,
+            instrument_type=instrument_type,
+            underlying=underlying,
+        )
+    if limit and limit > 0:
+        instruments = instruments[:limit]
     return ResponseSchema(
         status=enums.ResponseStatus.SUCCESS,
         data={
