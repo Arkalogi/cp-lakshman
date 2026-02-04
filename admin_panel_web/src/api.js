@@ -66,22 +66,16 @@ export async function listOrders(baseUrl, limit = 20, offset = 0) {
   };
 }
 
-export async function listMasterData(baseUrl) {
-  const data = await request(baseUrl, "/master-data/");
+export async function listMasterData(baseUrl, params = {}) {
+  const query = new URLSearchParams(params).toString();
+  const suffix = query ? `?${query}` : "";
+  const data = await request(baseUrl, `/master-data/${suffix}`);
   const payload = data?.data || {};
   return Array.isArray(payload.items) ? payload.items : [];
 }
 
-export async function searchMasterData(baseUrl, query, limit = 200) {
-  const params = new URLSearchParams();
-  if (query) {
-    params.set("q", query);
-  }
-  if (limit) {
-    params.set("limit", String(limit));
-  }
-  const suffix = params.toString() ? `?${params.toString()}` : "";
-  const data = await request(baseUrl, `/master-data/${suffix}`);
+export async function listAllMasterData(baseUrl) {
+  const data = await request(baseUrl, "/master-data/all");
   const payload = data?.data || {};
   return Array.isArray(payload.items) ? payload.items : [];
 }

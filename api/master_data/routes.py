@@ -60,7 +60,6 @@ async def list_master_data(
     underlying: Optional[str] = None,
     trading_symbol: Optional[str] = None,
     instrument_id: Optional[str] = None,
-    limit: int = 200,
 ):
     if not MASTER_DATA:
         return ResponseSchema(
@@ -76,6 +75,15 @@ async def list_master_data(
                 query in (instrument.instrument_id or "").lower()
                 or query in (instrument.trading_symbol or "").lower()
                 or query in (instrument.underlying or "").lower()
+                or query
+                in (str(instrument.strike) if instrument.strike is not None else "")
+                or query
+                in (
+                    instrument.option_type.value.lower()
+                    if instrument.option_type
+                    else ""
+                )
+                or query in (instrument.expiry or "").lower()
             )
         ]
     else:
@@ -86,8 +94,24 @@ async def list_master_data(
             instrument_type=instrument_type,
             underlying=underlying,
         )
-    if limit and limit > 0:
-        instruments = instruments[:limit]
+    return ResponseSchema(
+        status=enums.ResponseStatus.SUCCESS,
+        data={
+            "items": model_list_to_dict(instruments),
+            "total": len(instruments),
+        },
+        message="Master data fetched",
+    )
+
+
+@router.get("/all", response_model=ResponseSchema)
+async def list_all_master_data():
+    if not MASTER_DATA:
+        return ResponseSchema(
+            status=enums.ResponseStatus.ERROR,
+            message="Master data not loaded",
+        )
+    instruments = list(MASTER_DATA.values())
     return ResponseSchema(
         status=enums.ResponseStatus.SUCCESS,
         data={

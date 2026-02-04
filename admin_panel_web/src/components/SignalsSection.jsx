@@ -1,8 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   listMasterData,
   listSignalOrders,
-  searchMasterData,
   updateOrderStatus,
 } from "../api.js";
 
@@ -30,6 +29,10 @@ export default function SignalsSection({ signals, baseUrl, onCreate, onRefresh, 
   const [instruments, setInstruments] = useState([]);
   const [instrumentQuery, setInstrumentQuery] = useState("");
   const [instrumentResults, setInstrumentResults] = useState([]);
+  const [exchangeFilter, setExchangeFilter] = useState("nsefo");
+  const [instrumentTypeFilter, setInstrumentTypeFilter] = useState("fut");
+  const [optionTypeFilter, setOptionTypeFilter] = useState("");
+  const searchCache = useRef(new Map());
   const [expandedSignalId, setExpandedSignalId] = useState(null);
   const [childOrdersBySignalId, setChildOrdersBySignalId] = useState({});
   const [loadingSignalId, setLoadingSignalId] = useState(null);
@@ -48,7 +51,12 @@ export default function SignalsSection({ signals, baseUrl, onCreate, onRefresh, 
       return;
     }
     let cancelled = false;
-    listMasterData(baseUrl)
+    listMasterData(
+      baseUrl,
+      exchangeFilter
+        ? { exchange: exchangeFilter, instrument_type: instrumentTypeFilter }
+        : { instrument_type: instrumentTypeFilter }
+    )
       .then((items) => {
         if (!cancelled) {
           setInstruments(items);
@@ -62,7 +70,7 @@ export default function SignalsSection({ signals, baseUrl, onCreate, onRefresh, 
     return () => {
       cancelled = true;
     };
-  }, [baseUrl, onError]);
+  }, [baseUrl, exchangeFilter, instrumentTypeFilter, onError]);
 
   useEffect(() => {
     if (!baseUrl) {
@@ -73,30 +81,68 @@ export default function SignalsSection({ signals, baseUrl, onCreate, onRefresh, 
       setInstrumentResults([]);
       return;
     }
+    const cacheKey = `${exchangeFilter}:${instrumentTypeFilter}:${optionTypeFilter}:${query}`;
+    if (searchCache.current.has(cacheKey)) {
+      setInstrumentResults(searchCache.current.get(cacheKey));
+      return;
+    }
     let cancelled = false;
     const timeout = window.setTimeout(() => {
-      searchMasterData(baseUrl, query, 200)
-        .then((items) => {
-          if (!cancelled) {
-            setInstrumentResults(items);
-          }
-        })
-        .catch((error) => {
-          if (!cancelled) {
-            onError?.(error.message || "Failed to search master data.");
-          }
+      const localResults = instruments
+        .filter((item) => {
+          const idMatch = String(item.instrument_id || "")
+            .toLowerCase()
+            .includes(query.toLowerCase());
+          const symbolMatch = String(item.trading_symbol || "")
+            .toLowerCase()
+            .includes(query.toLowerCase());
+          const underlyingMatch = String(item.underlying || "")
+            .toLowerCase()
+            .includes(query.toLowerCase());
+          const expiryMatch = String(item.expiry || "")
+            .toLowerCase()
+            .includes(query.toLowerCase());
+          const optionMatch = String(item.option_type || "")
+            .toLowerCase()
+            .includes(query.toLowerCase());
+          const strikeMatch = String(item.strike || "")
+            .toLowerCase()
+            .includes(query.toLowerCase());
+          const optionTypeOk =
+            !optionTypeFilter ||
+            String(item.option_type || "").toLowerCase() === optionTypeFilter;
+          return (
+            idMatch ||
+            symbolMatch ||
+            underlyingMatch ||
+            expiryMatch ||
+            optionMatch ||
+            strikeMatch
+          ) && optionTypeOk;
         });
+      if (!cancelled) {
+        searchCache.current.set(cacheKey, localResults);
+        setInstrumentResults(localResults);
+      }
     }, 200);
     return () => {
       cancelled = true;
       window.clearTimeout(timeout);
     };
-  }, [baseUrl, instrumentQuery, onError]);
+  }, [
+    baseUrl,
+    instrumentQuery,
+    instruments,
+    exchangeFilter,
+    instrumentTypeFilter,
+    optionTypeFilter,
+    onError,
+  ]);
 
   const filteredInstruments = useMemo(() => {
     const query = instrumentQuery.trim().toLowerCase();
     if (!query) {
-      return instruments.slice(0, 100);
+      return instruments;
     }
     return instrumentResults;
   }, [instrumentQuery, instruments, instrumentResults]);
@@ -212,21 +258,77 @@ export default function SignalsSection({ signals, baseUrl, onCreate, onRefresh, 
               list="instrument-suggestions"
             />
           </div>
-          <div className="field">
-            <label>Find Instrument</label>
-            <input
-              value={instrumentQuery}
-              onChange={(event) => setInstrumentQuery(event.target.value)}
-              placeholder="Search by instrument_id / symbol / underlying"
-            />
-            <datalist id="instrument-suggestions">
-              {filteredInstruments.map((item) => (
-                <option key={item.instrument_id} value={item.instrument_id}>
-                  {item.instrument_id} - {item.trading_symbol} ({item.underlying})
-                </option>
-              ))}
-            </datalist>
+          <div className="filter-inline">
+            <div className="field">
+              <label>Exchange</label>
+              <select
+                value={exchangeFilter}
+                onChange={(event) => {
+                  setExchangeFilter(event.target.value);
+                  setInstrumentResults([]);
+                  setInstrumentQuery("");
+                  searchCache.current = new Map();
+                }}
+              >
+                <option value="">all</option>
+                <option value="nsecm">nsecm</option>
+                <option value="nsefo">nsefo</option>
+                <option value="bsecm">bsecm</option>
+                <option value="bsefo">bsefo</option>
+              </select>
+            </div>
+            <div className="field">
+              <label>Instrument Type</label>
+              <select
+                value={instrumentTypeFilter}
+                onChange={(event) => {
+                  setInstrumentTypeFilter(event.target.value);
+                  setOptionTypeFilter("");
+                  setInstrumentResults([]);
+                  setInstrumentQuery("");
+                  searchCache.current = new Map();
+                }}
+              >
+                <option value="eq">eq</option>
+                <option value="fut">fut</option>
+                <option value="opt">opt</option>
+              </select>
+            </div>
+            {instrumentTypeFilter === "opt" ? (
+              <div className="field">
+                <label>Option Type</label>
+                <select
+                  value={optionTypeFilter}
+                  onChange={(event) => {
+                    setOptionTypeFilter(event.target.value);
+                    setInstrumentResults([]);
+                    setInstrumentQuery("");
+                    searchCache.current = new Map();
+                  }}
+                >
+                  <option value="">all</option>
+                  <option value="ce">ce</option>
+                  <option value="pe">pe</option>
+                </select>
+              </div>
+            ) : null}
+            <div className="field">
+              <label>Find Instrument</label>
+              <input
+                value={instrumentQuery}
+                onChange={(event) => setInstrumentQuery(event.target.value)}
+                placeholder="Search by id / symbol / underlying / strike"
+              />
+            </div>
           </div>
+          <datalist id="instrument-suggestions">
+            {filteredInstruments.map((item) => (
+              <option
+                key={item.instrument_id}
+                value={item.instrument_id}
+              >{`${item.trading_symbol} (${item.instrument_id})`}</option>
+            ))}
+          </datalist>
           <div className="field">
             <label>Side</label>
             <select
