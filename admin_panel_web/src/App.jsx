@@ -5,13 +5,15 @@ import {
   health,
   listEntities,
   listOrders,
-  listSubscriberOrders,
+  listSignalOrders,
   normalizeBaseUrl,
+  updateOrderStatus,
   updateEntity,
 } from "./api.js";
 import CopyMonitor from "./components/CopyMonitor.jsx";
 import EntitySection from "./components/EntitySection.jsx";
 import OrderMonitor from "./components/OrderMonitor.jsx";
+import SignalsSection from "./components/SignalsSection.jsx";
 
 const DEFAULT_BASE_URL = "http://localhost:8000";
 
@@ -98,7 +100,6 @@ const entityConfigs = [
     key: "strategy_subscriptions",
     title: "Strategy Subscriptions",
     endpoint: "/strategy-subscriptions",
-    columns: ["id", "subscriber_id", "target_id", "multiplier"],
     createFields: [
       { name: "subscriber_id", label: "Subscriber ID", type: "number" },
       { name: "target_id", label: "Target ID", type: "number" },
@@ -109,21 +110,6 @@ const entityConfigs = [
       { name: "subscriber_id", label: "Subscriber ID", type: "number" },
       { name: "target_id", label: "Target ID", type: "number" },
       { name: "multiplier", label: "Multiplier", type: "number" },
-    ],
-  },
-  {
-    key: "demat_api_subscriptions",
-    title: "Demat API Subscriptions",
-    endpoint: "/demat-api-subscriptions",
-    columns: ["id", "subscriber_id", "target_id", "multiplier", "is_active"],
-    createFields: [
-      { name: "subscriber_id", label: "Subscriber ID", type: "number" },
-      { name: "target_id", label: "Target ID", type: "number" },
-    ],
-    updateFields: [
-      { name: "id", label: "Subscription ID", type: "number" },
-      { name: "subscriber_id", label: "Subscriber ID", type: "number" },
-      { name: "target_id", label: "Target ID", type: "number" },
     ],
   },
 ];
@@ -140,14 +126,14 @@ export default function App() {
   const [ordersTotal, setOrdersTotal] = useState(0);
   const [ordersLimit, setOrdersLimit] = useState(20);
   const [ordersOffset, setOrdersOffset] = useState(0);
-  const [expandedOrderId, setExpandedOrderId] = useState(null);
-  const [subscriberOrdersByOrderId, setSubscriberOrdersByOrderId] = useState({});
-  const [loadingOrderId, setLoadingOrderId] = useState(null);
+  const [expandedSignalId, setExpandedSignalId] = useState(null);
+  const [childOrdersBySignalId, setChildOrdersBySignalId] = useState({});
+  const [loadingSignalId, setLoadingSignalId] = useState(null);
   const [data, setData] = useState(() =>
     entityConfigs.reduce((acc, entity) => {
       acc[entity.key] = [];
       return acc;
-    }, {})
+    }, { signals: [] })
   );
 
   const normalizedBaseUrl = useMemo(() => normalizeBaseUrl(baseUrl), [baseUrl]);
@@ -170,6 +156,7 @@ export default function App() {
       await Promise.all(
         entityConfigs.map((entity) => refreshEntity(entity.key, entity.endpoint))
       );
+      await refreshEntity("signals", "/signals");
       const ordersPage = await listOrders(
         normalizedBaseUrl,
         ordersLimit,
@@ -291,30 +278,44 @@ export default function App() {
     }
   };
 
-  const handleToggleSubscribers = async (order) => {
-    if (!order?.id) {
-      setError("Order ID is required to load subscriber orders.");
+  const handleToggleChildren = async (order) => {
+    if (!order?.signal_id) {
+      setError("Signal ID is required to load signal orders.");
       return;
     }
-    if (expandedOrderId === order.id) {
-      setExpandedOrderId(null);
+    if (expandedSignalId === order.signal_id) {
+      setExpandedSignalId(null);
       return;
     }
-    setExpandedOrderId(order.id);
-    if (subscriberOrdersByOrderId[order.id]) {
+    setExpandedSignalId(order.signal_id);
+    if (childOrdersBySignalId[order.signal_id]) {
       return;
     }
-    setLoadingOrderId(order.id);
+    setLoadingSignalId(order.signal_id);
     try {
-      const list = await listSubscriberOrders(normalizedBaseUrl, order.id);
-      setSubscriberOrdersByOrderId((prev) => ({
+      const list = await listSignalOrders(normalizedBaseUrl, order.signal_id);
+      setChildOrdersBySignalId((prev) => ({
         ...prev,
-        [order.id]: list,
+        [order.signal_id]: list,
       }));
     } catch (err) {
-      setError(err.message || "Failed to load subscriber orders.");
+      setError(err.message || "Failed to load signal orders.");
     } finally {
-      setLoadingOrderId(null);
+      setLoadingSignalId(null);
+    }
+  };
+
+  const handleUpdateOrderStatus = async (orderId, payload, errorObj) => {
+    if (errorObj) {
+      setError(errorObj.message);
+      return;
+    }
+    try {
+      await updateOrderStatus(normalizedBaseUrl, orderId, payload);
+      await handleOrderRefresh();
+      setNotice("Order status updated.");
+    } catch (err) {
+      setError(err.message || "Failed to update order.");
     }
   };
 
@@ -371,9 +372,12 @@ export default function App() {
         {error ? <div className="error">{error}</div> : null}
       </section>
 
-      <CopyMonitor
-        strategySubs={data.strategy_subscriptions}
-        dematSubs={data.demat_api_subscriptions}
+      <CopyMonitor strategySubs={data.strategy_subscriptions} />
+
+      <SignalsSection
+        signals={data.signals}
+        onCreate={(payload, errorObj) => handleCreate({ key: "signals", endpoint: "/signals", title: "Signals" }, payload, errorObj)}
+        onRefresh={() => refreshEntity("signals", "/signals")}
       />
 
       <OrderMonitor
@@ -382,12 +386,13 @@ export default function App() {
         limit={ordersLimit}
         offset={ordersOffset}
         onRefresh={handleOrderRefresh}
-        onToggleSubscribers={handleToggleSubscribers}
-        expandedOrderId={expandedOrderId}
-        subscriberOrdersByOrderId={subscriberOrdersByOrderId}
-        loadingOrderId={loadingOrderId}
+        onToggleChildren={handleToggleChildren}
+        expandedOrderId={expandedSignalId}
+        childOrdersBySignalId={childOrdersBySignalId}
+        loadingSignalId={loadingSignalId}
         onNext={handleOrdersNext}
         onPrev={handleOrdersPrev}
+        onUpdateStatus={handleUpdateOrderStatus}
       />
 
       {entityConfigs.map((entity) => (

@@ -10,18 +10,13 @@ function formatCell(value) {
   return String(value);
 }
 
-export default function CopyMonitor({ strategySubs, dematSubs }) {
+export default function CopyMonitor({ strategySubs }) {
   const rows = useMemo(() => {
-    const strategyRows = (strategySubs || []).map((row) => ({
+    return (strategySubs || []).map((row) => ({
       type: "strategy",
       ...row,
     }));
-    const dematRows = (dematSubs || []).map((row) => ({
-      type: "demat_api",
-      ...row,
-    }));
-    return [...strategyRows, ...dematRows];
-  }, [strategySubs, dematSubs]);
+  }, [strategySubs]);
 
   const columns = useMemo(() => {
     const keys = new Set(["type"]);

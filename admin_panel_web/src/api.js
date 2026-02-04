@@ -66,6 +66,28 @@ export async function listOrders(baseUrl, limit = 20, offset = 0) {
   };
 }
 
+export async function listSignalOrders(baseUrl, signalId, status) {
+  const query = status ? `?status=${encodeURIComponent(status)}` : "";
+  const data = await request(baseUrl, `/signals/${signalId}/orders${query}`);
+  const payload = data?.data ?? [];
+  return Array.isArray(payload) ? payload : [payload];
+}
+
+export async function listChildOrders(baseUrl, params = {}) {
+  const query = new URLSearchParams(params).toString();
+  const suffix = query ? `?${query}` : "";
+  const data = await request(baseUrl, `/orders/children${suffix}`);
+  const payload = data?.data ?? [];
+  return Array.isArray(payload) ? payload : [payload];
+}
+
+export async function updateOrderStatus(baseUrl, orderId, payload) {
+  return request(baseUrl, `/orders/${orderId}/status`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function createEntity(baseUrl, endpoint, payload) {
   const collectionPath = endpoint.endsWith("/") ? endpoint : `${endpoint}/`;
   return request(baseUrl, collectionPath, {
@@ -85,8 +107,4 @@ export async function deleteEntity(baseUrl, endpoint, id) {
   return request(baseUrl, `${endpoint}/${id}`, {
     method: "DELETE",
   });
-}
-
-export async function listSubscriberOrders(baseUrl, orderId) {
-  return listEntities(baseUrl, `/orders/${orderId}/subscriber-orders`);
 }
