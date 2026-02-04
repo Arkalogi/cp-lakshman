@@ -66,6 +66,12 @@ export async function listOrders(baseUrl, limit = 20, offset = 0) {
   };
 }
 
+export async function listMasterData(baseUrl) {
+  const data = await request(baseUrl, "/master-data/");
+  const payload = data?.data || {};
+  return Array.isArray(payload.items) ? payload.items : [];
+}
+
 export async function listSignalOrders(baseUrl, signalId, status) {
   const query = status ? `?status=${encodeURIComponent(status)}` : "";
   const data = await request(baseUrl, `/signals/${signalId}/orders${query}`);

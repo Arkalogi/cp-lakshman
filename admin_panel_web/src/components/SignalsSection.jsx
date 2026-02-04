@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { listSignalOrders, updateOrderStatus } from "../api.js";
+import React, { useEffect, useMemo, useState } from "react";
+import { listMasterData, listSignalOrders, updateOrderStatus } from "../api.js";
 
 const EMPTY_FORM = {
   strategy_id: "1",
@@ -22,6 +22,8 @@ function formatCell(value) {
 
 export default function SignalsSection({ signals, baseUrl, onCreate, onRefresh, onError }) {
   const [form, setForm] = useState(EMPTY_FORM);
+  const [instruments, setInstruments] = useState([]);
+  const [instrumentQuery, setInstrumentQuery] = useState("");
   const [expandedSignalId, setExpandedSignalId] = useState(null);
   const [childOrdersBySignalId, setChildOrdersBySignalId] = useState({});
   const [loadingSignalId, setLoadingSignalId] = useState(null);
@@ -34,6 +36,42 @@ export default function SignalsSection({ signals, baseUrl, onCreate, onRefresh, 
     error_code: "",
     error_message: "",
   });
+
+  useEffect(() => {
+    if (!baseUrl) {
+      return;
+    }
+    let cancelled = false;
+    listMasterData(baseUrl)
+      .then((items) => {
+        if (!cancelled) {
+          setInstruments(items);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          onError?.(error.message || "Failed to load master data.");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [baseUrl, onError]);
+
+  const filteredInstruments = useMemo(() => {
+    const query = instrumentQuery.trim().toLowerCase();
+    if (!query) {
+      return instruments.slice(0, 100);
+    }
+    return instruments
+      .filter((item) => {
+        const idMatch = String(item.instrument_id || "").toLowerCase().includes(query);
+        const symbolMatch = String(item.trading_symbol || "").toLowerCase().includes(query);
+        const underlyingMatch = String(item.underlying || "").toLowerCase().includes(query);
+        return idMatch || symbolMatch || underlyingMatch;
+      })
+      .slice(0, 200);
+  }, [instrumentQuery, instruments]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -143,7 +181,23 @@ export default function SignalsSection({ signals, baseUrl, onCreate, onRefresh, 
                 setForm((prev) => ({ ...prev, instrument_id: event.target.value }))
               }
               required
+              list="instrument-suggestions"
             />
+          </div>
+          <div className="field">
+            <label>Find Instrument</label>
+            <input
+              value={instrumentQuery}
+              onChange={(event) => setInstrumentQuery(event.target.value)}
+              placeholder="Search by instrument_id / symbol / underlying"
+            />
+            <datalist id="instrument-suggestions">
+              {filteredInstruments.map((item) => (
+                <option key={item.instrument_id} value={item.instrument_id}>
+                  {item.instrument_id} - {item.trading_symbol} ({item.underlying})
+                </option>
+              ))}
+            </datalist>
           </div>
           <div className="field">
             <label>Side</label>
