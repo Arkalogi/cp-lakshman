@@ -47,3 +47,7 @@ class Exchange(Enum):
 class OptionType(Enum):
     CE = "ce"
     PE = "pe"
+
+class SignalType(Enum):
+    ENTER_POSITION = "enter_position"
+    EXIT_POSITION = "exit_position"

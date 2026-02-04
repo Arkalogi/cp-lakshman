@@ -19,6 +19,7 @@ from api.commons.enums import (
     OptionType,
     OrderSide,
     OrderStatus,
+    SignalType,
 )
 
 
@@ -89,7 +90,8 @@ class StrategySubscription(Base):
     id = Column(Integer, primary_key=True)
     subscriber_id = Column(Integer, ForeignKey("demat_apis.id", ondelete="CASCADE"))
     target_id = Column(Integer, ForeignKey("strategies.id", ondelete="CASCADE"))
-    multiplier = Column(Integer, nullable=False, default=1)
+    total_fund = Column(Float, nullable=False, default=0)
+    fund_allocation_precentage = Column(Float, nullable=False, default=1)
 
     subscriber = relationship(
         "DematApi",
@@ -147,7 +149,7 @@ class Instrument(Base):
     trading_symbol = Column(String(100), nullable=False)
     underlying = Column(String(50), nullable=False)
     instrument_type = Column(Enum(InstrumentType), nullable=False)
-    lot_size = Column(String(10), nullable=False)
+    lot_size = Column(Integer, nullable=False)
     freeze_quantity = Column(Integer, nullable=False, default=0)
     expiry = Column(String(10), nullable=True)
     strike = Column(Float, nullable=True)
@@ -158,10 +160,12 @@ class Signal(Base):
     __tablename__ = "signals"
 
     id = Column(Integer, primary_key=True, index=True)
+    type = Column(Enum(SignalType), nullable=False, default=SignalType.ENTER_POSITION.value)
     strategy_id = Column(Integer, ForeignKey("strategies.id", ondelete="CASCADE"))
     instrument_id = Column(String(12), nullable=False)
     trading_symbol = Column(String(100), nullable=False)
     side = Column(Enum(OrderSide), nullable=False)
+    depends_on_signal_id = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     meta_data = Column(Text, nullable=True)
 

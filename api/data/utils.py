@@ -5,7 +5,7 @@ import logging
 import requests
 from typing import Iterable, List, Optional
 from sqlalchemy import insert, select
-from api.data.local import MASTER_DATA, TOKEN_MAP
+from api.data.local import MASTER_DATA, PRICE_CACHE, TOKEN_MAP
 from api.data.models import Instrument
 from api.data import models, database
 from api.commons.constants import ZERODHA_MASTER_DATA_URL
@@ -215,4 +215,17 @@ async def load_master_data():
     
 def get_instrument_by_id(instrument_id: str) -> Optional[Instrument]:
     return MASTER_DATA.get(instrument_id)
+
+def get_instrument_by_trading_symbol(trading_symbol: str) -> Optional[Instrument]:
+    instrument_id = TOKEN_MAP.get(trading_symbol)
+    if instrument_id:
+        return MASTER_DATA.get(instrument_id)
+    return None
+
+async def get_current_price(instrument_id: str) -> Optional[float]:
+    # price_data = PRICE_CACHE
+    # if not price_data:
+    #     return None
+    # return price_data.get(instrument_id)
+    return 200.0  # Placeholder for current price retrieval logic
 
