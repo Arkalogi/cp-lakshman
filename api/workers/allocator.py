@@ -1,7 +1,5 @@
-import asyncio
 import json
 import logging
-from typing import Dict, List
 from sqlalchemy import select
 from api.commons import enums
 from api.data import database, models, red, utils
@@ -22,6 +20,12 @@ async def thread_spawn_loop():
             signal_target_id = order_signal.get("target_id")
             signal_id = order_signal.get("signal_id")
             instrument_id = order_signal.get("instrument_id")
+            side_value = order_signal.get("side")
+            side_enum = (
+                enums.OrderSide(side_value)
+                if side_value in enums.OrderSide._value2member_map_
+                else enums.OrderSide.BUY
+            )
             if signal_target_id is None or instrument_id is None:
                 logger.warning("Skipping invalid order signal payload: %s", order_signal)
                 continue
@@ -39,16 +43,6 @@ async def thread_spawn_loop():
                         instrument_id,
                     )
 
-            parent_order = None
-            if order_signal.get("depends_on_signal_id"):
-                async with database.DbAsyncSession() as db:
-                    result = await db.execute(
-                        select(models.Order).where(
-                            models.Order.signal_id
-                            == order_signal["depends_on_signal_id"]
-                        )
-                    )
-                    parent_order = result.scalars().one_or_none()
 
             async with database.DbAsyncSession() as db:
                 result = await db.execute(
@@ -58,23 +52,35 @@ async def thread_spawn_loop():
                 demat_api_subscriptions = result.scalars().all()
 
                 for demat_api_subscription in demat_api_subscriptions:
+                    parent_order = None
+                    if order_signal.get("depends_on_signal_id"):
+                        result = await db.execute(
+                            select(models.Order).where(
+                                models.Order.signal_id
+                                == order_signal["depends_on_signal_id"],
+                                models.Order.demat_api_id
+                                == demat_api_subscription.subscriber_id,
+                            )
+                        )
+                        parent_order = result.scalars().one_or_none()
+                        if parent_order and parent_order.side == enums.OrderSide.BUY:
+                            side_enum = enums.OrderSide.SELL
+                        elif parent_order and parent_order.side == enums.OrderSide.SELL:
+                            side_enum = enums.OrderSide.BUY
                     if current_price is None:
                         order = models.Order(
                             tag=f"signal:{signal_id}:{demat_api_subscription.subscriber_id}",
                             instrument_id=instrument_id,
                             trading_symbol=order_signal.get("trading_symbol")
                             or (instrument.trading_symbol if instrument else ""),
-                            side=enums.OrderSide(
-                                order_signal.get("side") or enums.OrderSide.BUY.value
-                            ),
+                            side=side_enum,
                             quantity=0,
                             price=0,
                             status=enums.OrderStatus.FAILED.value,
                             filled_quantity=0,
                             average_price=0,
-                            parent_tag=f"signal:{signal_id}" if signal_id is not None else None,
                             signal_id=signal_id,
-                            api_id=demat_api_subscription.subscriber_id,
+                            demat_api_id=demat_api_subscription.subscriber_id,
                             error_message="Price not available for allocation.",
                             meta_data=json.dumps(
                                 {"signal": order_signal},
@@ -103,17 +109,14 @@ async def thread_spawn_loop():
                             instrument_id=instrument_id,
                             trading_symbol=order_signal.get("trading_symbol")
                             or (instrument.trading_symbol if instrument else ""),
-                            side=enums.OrderSide(
-                                order_signal.get("side") or enums.OrderSide.BUY.value
-                            ),
+                            side=side_enum,
                             quantity=0,
                             price=current_price or 0,
                             status=enums.OrderStatus.FAILED.value,
                             filled_quantity=0,
                             average_price=0,
-                            parent_tag=f"signal:{signal_id}" if signal_id is not None else None,
                             signal_id=signal_id,
-                            api_id=demat_api_subscription.subscriber_id,
+                            demat_api_id=demat_api_subscription.subscriber_id,
                             error_message="Insufficient allocated funds.",
                             meta_data=json.dumps(
                                 {"signal": order_signal},
@@ -138,17 +141,14 @@ async def thread_spawn_loop():
                             instrument_id=instrument_id,
                             trading_symbol=order_signal.get("trading_symbol")
                             or (instrument.trading_symbol if instrument else ""),
-                            side=enums.OrderSide(
-                                order_signal.get("side") or enums.OrderSide.BUY.value
-                            ),
+                            side=side_enum,
                             quantity=0,
                             price=current_price,
                             status=enums.OrderStatus.FAILED.value,
                             filled_quantity=0,
                             average_price=0,
-                            parent_tag=f"signal:{signal_id}" if signal_id is not None else None,
                             signal_id=signal_id,
-                            api_id=demat_api_subscription.subscriber_id,
+                            demat_api_id=demat_api_subscription.subscriber_id,
                             error_message="Allocated quantity less than 1.",
                             meta_data=json.dumps(
                                 {"signal": order_signal},
@@ -161,6 +161,33 @@ async def thread_spawn_loop():
 
                     if parent_order:
                         filled_quantity = parent_order.filled_quantity or 0
+                        if filled_quantity <= 0:
+                            logger.warning(
+                                "Exit signal has zero filled quantity for signal %s. Skipping.",
+                                signal_id,
+                            )
+                            order = models.Order(
+                                tag=f"signal:{signal_id}:{demat_api_subscription.subscriber_id}",
+                                instrument_id=instrument_id,
+                                trading_symbol=order_signal.get("trading_symbol")
+                                or (instrument.trading_symbol if instrument else ""),
+                                side=side_enum,
+                                quantity=0,
+                                price=current_price,
+                                status=enums.OrderStatus.FAILED.value,
+                                filled_quantity=0,
+                                average_price=0,
+                                signal_id=signal_id,
+                                demat_api_id=demat_api_subscription.subscriber_id,
+                                error_message="Parent order filled quantity is zero.",
+                                meta_data=json.dumps(
+                                    {"signal": order_signal},
+                                    separators=(",", ":"),
+                                    ensure_ascii=True,
+                                ),
+                            )
+                            db.add(order)
+                            continue
                         if filled_quantity < quantity:
                             quantity = filled_quantity
                         if quantity <= 0:
@@ -186,9 +213,7 @@ async def thread_spawn_loop():
                         tag=f"signal:{signal_id}:{demat_api_subscription.subscriber_id}",
                         instrument_id=instrument_id,
                         trading_symbol=instrument.trading_symbol,
-                        side=enums.OrderSide(
-                            order_signal.get("side") or enums.OrderSide.BUY.value
-                        ),
+                        side=side_enum,
                         quantity=quantity,
                         price=current_price,
                         status=enums.OrderStatus.PENDING.value,
