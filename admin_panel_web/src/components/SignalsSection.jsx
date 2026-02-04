@@ -31,6 +31,7 @@ export default function SignalsSection({ signals, baseUrl, onCreate, onRefresh, 
   const [instrumentResults, setInstrumentResults] = useState([]);
   const [exchangeFilter, setExchangeFilter] = useState("nsefo");
   const [instrumentTypeFilter, setInstrumentTypeFilter] = useState("fut");
+  const [underlyingFilter, setUnderlyingFilter] = useState("NIFTY");
   const [optionTypeFilter, setOptionTypeFilter] = useState("");
   const searchCache = useRef(new Map());
   const [expandedSignalId, setExpandedSignalId] = useState(null);
@@ -54,8 +55,15 @@ export default function SignalsSection({ signals, baseUrl, onCreate, onRefresh, 
     listMasterData(
       baseUrl,
       exchangeFilter
-        ? { exchange: exchangeFilter, instrument_type: instrumentTypeFilter }
-        : { instrument_type: instrumentTypeFilter }
+        ? {
+            exchange: exchangeFilter,
+            instrument_type: instrumentTypeFilter,
+            underlying: underlyingFilter || undefined,
+          }
+        : {
+            instrument_type: instrumentTypeFilter,
+            underlying: underlyingFilter || undefined,
+          }
     )
       .then((items) => {
         if (!cancelled) {
@@ -70,7 +78,7 @@ export default function SignalsSection({ signals, baseUrl, onCreate, onRefresh, 
     return () => {
       cancelled = true;
     };
-  }, [baseUrl, exchangeFilter, instrumentTypeFilter, onError]);
+  }, [baseUrl, exchangeFilter, instrumentTypeFilter, underlyingFilter, onError]);
 
   useEffect(() => {
     if (!baseUrl) {
@@ -81,7 +89,7 @@ export default function SignalsSection({ signals, baseUrl, onCreate, onRefresh, 
       setInstrumentResults([]);
       return;
     }
-    const cacheKey = `${exchangeFilter}:${instrumentTypeFilter}:${optionTypeFilter}:${query}`;
+    const cacheKey = `${exchangeFilter}:${instrumentTypeFilter}:${underlyingFilter}:${optionTypeFilter}:${query}`;
     if (searchCache.current.has(cacheKey)) {
       setInstrumentResults(searchCache.current.get(cacheKey));
       return;
@@ -135,6 +143,7 @@ export default function SignalsSection({ signals, baseUrl, onCreate, onRefresh, 
     instruments,
     exchangeFilter,
     instrumentTypeFilter,
+    underlyingFilter,
     optionTypeFilter,
     onError,
   ]);
@@ -142,10 +151,20 @@ export default function SignalsSection({ signals, baseUrl, onCreate, onRefresh, 
   const filteredInstruments = useMemo(() => {
     const query = instrumentQuery.trim().toLowerCase();
     if (!query) {
-      return instruments;
+      return [];
     }
     return instrumentResults;
   }, [instrumentQuery, instruments, instrumentResults]);
+
+  const underlyingSuggestions = useMemo(() => {
+    const values = new Set();
+    instruments.forEach((item) => {
+      if (item.underlying) {
+        values.add(String(item.underlying).toUpperCase());
+      }
+    });
+    return Array.from(values).sort((a, b) => a.localeCompare(b));
+  }, [instruments]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -251,9 +270,11 @@ export default function SignalsSection({ signals, baseUrl, onCreate, onRefresh, 
             <label>Instrument ID</label>
             <input
               value={form.instrument_id}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, instrument_id: event.target.value }))
-              }
+              onChange={(event) => {
+                const value = event.target.value;
+                setForm((prev) => ({ ...prev, instrument_id: value }));
+                setInstrumentQuery(value);
+              }}
               required
               list="instrument-suggestions"
             />
@@ -294,6 +315,20 @@ export default function SignalsSection({ signals, baseUrl, onCreate, onRefresh, 
                 <option value="opt">opt</option>
               </select>
             </div>
+            <div className="field">
+              <label>Underlying</label>
+              <input
+                value={underlyingFilter}
+                onChange={(event) => {
+                  setUnderlyingFilter(event.target.value.toUpperCase());
+                  setInstrumentResults([]);
+                  setInstrumentQuery("");
+                  searchCache.current = new Map();
+                }}
+                placeholder="NIFTY"
+                list="underlying-suggestions"
+              />
+            </div>
             {instrumentTypeFilter === "opt" ? (
               <div className="field">
                 <label>Option Type</label>
@@ -313,11 +348,16 @@ export default function SignalsSection({ signals, baseUrl, onCreate, onRefresh, 
               </div>
             ) : null}
             <div className="field">
-              <label>Find Instrument</label>
+              <label>Search</label>
               <input
                 value={instrumentQuery}
-                onChange={(event) => setInstrumentQuery(event.target.value)}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setInstrumentQuery(value);
+                  setForm((prev) => ({ ...prev, instrument_id: value }));
+                }}
                 placeholder="Search by id / symbol / underlying / strike"
+                list="instrument-suggestions"
               />
             </div>
           </div>
@@ -327,6 +367,11 @@ export default function SignalsSection({ signals, baseUrl, onCreate, onRefresh, 
                 key={item.instrument_id}
                 value={item.instrument_id}
               >{`${item.trading_symbol} (${item.instrument_id})`}</option>
+            ))}
+          </datalist>
+          <datalist id="underlying-suggestions">
+            {underlyingSuggestions.map((value) => (
+              <option key={value} value={value} />
             ))}
           </datalist>
           <div className="field">
@@ -389,7 +434,7 @@ export default function SignalsSection({ signals, baseUrl, onCreate, onRefresh, 
                   {Object.keys(signals[0] || {}).map((key) => (
                     <th key={key}>{key}</th>
                   ))}
-                  <th>actions</th>
+                  <th className="actions-col">actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -399,7 +444,7 @@ export default function SignalsSection({ signals, baseUrl, onCreate, onRefresh, 
                       {Object.keys(signals[0] || {}).map((key) => (
                         <td key={key}>{formatCell(signal?.[key])}</td>
                       ))}
-                      <td>
+                      <td className="actions-col">
                         <button
                           type="button"
                           className="ghost"
@@ -412,38 +457,40 @@ export default function SignalsSection({ signals, baseUrl, onCreate, onRefresh, 
                     {expandedSignalId === signal.id ? (
                       <tr className="subrow">
                         <td colSpan={(Object.keys(signals[0] || {}).length || 0) + 1}>
-                          {loadingSignalId === signal.id ? (
-                            <div className="empty-state">Loading signal orders...</div>
-                          ) : childOrdersBySignalId[signal.id]?.length ? (
-                            <div className="table-wrapper">
-                              <table>
-                                <thead>
-                                  <tr>
-                                    {Object.keys(
-                                      childOrdersBySignalId[signal.id][0] || {}
-                                    ).map((key) => (
-                                      <th key={key}>{key}</th>
-                                    ))}
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {childOrdersBySignalId[signal.id].map(
-                                    (order, index) => (
-                                      <tr key={order.id || index}>
-                                        {Object.keys(
-                                          childOrdersBySignalId[signal.id][0] || {}
-                                        ).map((key) => (
-                                          <td key={key}>{formatCell(order?.[key])}</td>
-                                        ))}
-                                      </tr>
-                                    )
-                                  )}
-                                </tbody>
-                              </table>
-                            </div>
-                          ) : (
-                            <div className="empty-state">No signal orders found.</div>
-                          )}
+                          <div className="orders-scroll">
+                            {loadingSignalId === signal.id ? (
+                              <div className="empty-state">Loading signal orders...</div>
+                            ) : childOrdersBySignalId[signal.id]?.length ? (
+                              <div className="table-wrapper">
+                                <table>
+                                  <thead>
+                                    <tr>
+                                      {Object.keys(
+                                        childOrdersBySignalId[signal.id][0] || {}
+                                      ).map((key) => (
+                                        <th key={key}>{key}</th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {childOrdersBySignalId[signal.id].map(
+                                      (order, index) => (
+                                        <tr key={order.id || index}>
+                                          {Object.keys(
+                                            childOrdersBySignalId[signal.id][0] || {}
+                                          ).map((key) => (
+                                            <td key={key}>{formatCell(order?.[key])}</td>
+                                          ))}
+                                        </tr>
+                                      )
+                                    )}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : (
+                              <div className="empty-state">No signal orders found.</div>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ) : null}

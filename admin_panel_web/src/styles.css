@@ -263,6 +263,7 @@ table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.9rem;
+  table-layout: fixed;
 }
 
 th,
@@ -294,6 +295,11 @@ th {
   position: sticky;
   right: 0;
   background: #fff;
+}
+
+.actions-col {
+  width: 140px;
+  text-align: right;
 }
 
 .icon-button {
@@ -402,6 +408,12 @@ th {
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 12px;
   width: 100%;
+}
+
+.orders-scroll {
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 6px;
 }
 
 
