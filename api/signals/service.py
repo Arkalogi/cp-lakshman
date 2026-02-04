@@ -25,7 +25,7 @@ async def add_signal_data(signal_data: SignalCreateSchema):
             strategy_id=signal_data.strategy_id,
             instrument_id=signal_data.instrument_id,
             trading_symbol=instrument.trading_symbol,
-            dependens_on_signal_id=signal_data.depends_on_signal_id,
+            depends_on_signal_id=signal_data.depends_on_signal_id,
             side=signal_data.side,
             meta_data=signal_data.meta_data,
         )

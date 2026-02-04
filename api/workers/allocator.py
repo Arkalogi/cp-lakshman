@@ -27,18 +27,11 @@ async def thread_spawn_loop():
                 continue
 
             current_price = await utils.get_current_price(instrument_id)
-            if current_price is None:
-                logger.warning(
-                    "Skipping order allocation for signal %s due to missing price data.",
-                    signal_id,
-                )
-                continue
-
             instrument = utils.get_instrument_by_id(instrument_id)
             lot_size = 0
             if instrument and instrument.lot_size:
                 try:
-                    lot_size = instrument.lot_size
+                    lot_size = int(instrument.lot_size)
                 except (TypeError, ValueError):
                     logger.warning(
                         "Invalid lot size %s for instrument %s.",
@@ -65,6 +58,37 @@ async def thread_spawn_loop():
                 demat_api_subscriptions = result.scalars().all()
 
                 for demat_api_subscription in demat_api_subscriptions:
+                    if current_price is None:
+                        order = models.Order(
+                            tag=f"signal:{signal_id}:{demat_api_subscription.subscriber_id}",
+                            instrument_id=instrument_id,
+                            trading_symbol=order_signal.get("trading_symbol")
+                            or (instrument.trading_symbol if instrument else ""),
+                            side=enums.OrderSide(
+                                order_signal.get("side") or enums.OrderSide.BUY.value
+                            ),
+                            quantity=0,
+                            price=0,
+                            status=enums.OrderStatus.FAILED.value,
+                            filled_quantity=0,
+                            average_price=0,
+                            parent_tag=f"signal:{signal_id}" if signal_id is not None else None,
+                            signal_id=signal_id,
+                            api_id=demat_api_subscription.subscriber_id,
+                            error_message="Price not available for allocation.",
+                            meta_data=json.dumps(
+                                {"signal": order_signal},
+                                separators=(",", ":"),
+                                ensure_ascii=True,
+                            ),
+                        )
+                        db.add(order)
+                        logger.warning(
+                            "Created rejected order for signal %s due to missing price data.",
+                            signal_id,
+                        )
+                        continue
+
                     total_fund = demat_api_subscription.total_fund or 0
                     fund_allocation_percentage = demat_api_subscription.fund_allocation_precentage or 0
                     allocated_fund = total_fund * fund_allocation_percentage / 100
@@ -74,6 +98,30 @@ async def thread_spawn_loop():
                             demat_api_subscription.subscriber_id,
                             signal_id,
                         )
+                        order = models.Order(
+                            tag=f"signal:{signal_id}:{demat_api_subscription.subscriber_id}",
+                            instrument_id=instrument_id,
+                            trading_symbol=order_signal.get("trading_symbol")
+                            or (instrument.trading_symbol if instrument else ""),
+                            side=enums.OrderSide(
+                                order_signal.get("side") or enums.OrderSide.BUY.value
+                            ),
+                            quantity=0,
+                            price=current_price or 0,
+                            status=enums.OrderStatus.FAILED.value,
+                            filled_quantity=0,
+                            average_price=0,
+                            parent_tag=f"signal:{signal_id}" if signal_id is not None else None,
+                            signal_id=signal_id,
+                            api_id=demat_api_subscription.subscriber_id,
+                            error_message="Insufficient allocated funds.",
+                            meta_data=json.dumps(
+                                {"signal": order_signal},
+                                separators=(",", ":"),
+                                ensure_ascii=True,
+                            ),
+                        )
+                        db.add(order)
                         continue
 
                     quantity = int(allocated_fund / current_price)
@@ -85,6 +133,30 @@ async def thread_spawn_loop():
                             "Allocated quantity is zero for signal %s. Skipping.",
                             signal_id,
                         )
+                        order = models.Order(
+                            tag=f"signal:{signal_id}:{demat_api_subscription.subscriber_id}",
+                            instrument_id=instrument_id,
+                            trading_symbol=order_signal.get("trading_symbol")
+                            or (instrument.trading_symbol if instrument else ""),
+                            side=enums.OrderSide(
+                                order_signal.get("side") or enums.OrderSide.BUY.value
+                            ),
+                            quantity=0,
+                            price=current_price,
+                            status=enums.OrderStatus.FAILED.value,
+                            filled_quantity=0,
+                            average_price=0,
+                            parent_tag=f"signal:{signal_id}" if signal_id is not None else None,
+                            signal_id=signal_id,
+                            api_id=demat_api_subscription.subscriber_id,
+                            error_message="Allocated quantity less than 1.",
+                            meta_data=json.dumps(
+                                {"signal": order_signal},
+                                separators=(",", ":"),
+                                ensure_ascii=True,
+                            ),
+                        )
+                        db.add(order)
                         continue
 
                     if parent_order:
@@ -109,5 +181,28 @@ async def thread_spawn_loop():
                             routed_signal, separators=(",", ":"), ensure_ascii=True
                         ),
                     )
+
+                    order = models.Order(
+                        tag=f"signal:{signal_id}:{demat_api_subscription.subscriber_id}",
+                        instrument_id=instrument_id,
+                        trading_symbol=instrument.trading_symbol,
+                        side=enums.OrderSide(
+                            order_signal.get("side") or enums.OrderSide.BUY.value
+                        ),
+                        quantity=quantity,
+                        price=current_price,
+                        status=enums.OrderStatus.PENDING.value,
+                        filled_quantity=0,
+                        average_price=0,
+                        signal_id=signal_id,
+                        demat_api_id=demat_api_subscription.subscriber_id,
+                        meta_data=json.dumps(
+                            {"signal": order_signal, "routed": routed_signal},
+                            separators=(",", ":"),
+                            ensure_ascii=True,
+                        ),
+                    )
+                    db.add(order)
+                await db.commit()
         except Exception:
             logger.exception("Allocator failed to process order signal.")

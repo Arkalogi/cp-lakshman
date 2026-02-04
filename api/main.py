@@ -11,7 +11,7 @@ from api.users.routes import router as users_router
 from api.orders.routes import router as orders_router
 from api.master_data.routes import router as master_data_router
 from api.signals.routes import router as signals_router
-from api.workers import order_generator, allocator
+from api.workers import allocator
 from api.data.utils import load_master_data
 from api.data.local import MASTER_DATA, TOKEN_MAP
 
@@ -50,24 +50,20 @@ async def start_workers():
     await load_master_data()
     app.state.master_data = MASTER_DATA
     app.state.token_map = TOKEN_MAP
-#     logger.info("Starting worker tasks")
-#     app.state.order_generator_task = asyncio.create_task(
-#         order_generator.thread_spawn_loop()
-#     )
-#     app.state.allocator_task = asyncio.create_task(allocator.thread_spawn_loop())
+    logger.info("Starting worker tasks")
+    app.state.allocator_task = asyncio.create_task(allocator.thread_spawn_loop())
 
 
-# @app.on_event("shutdown")
-# async def stop_workers():
-#     tasks = [
-#         getattr(app.state, "order_generator_task", None),
-#         getattr(app.state, "allocator_task", None),
-#     ]
-#     tasks = [task for task in tasks if task]
-#     if tasks:
-#         logger.info("Stopping worker tasks")
-#         for task in tasks:
-#             task.cancel()
+@app.on_event("shutdown")
+async def stop_workers():
+    tasks = [
+        getattr(app.state, "allocator_task", None),
+    ]
+    tasks = [task for task in tasks if task]
+    if tasks:
+        logger.info("Stopping worker tasks")
+        for task in tasks:
+            task.cancel()
 
 
 @app.get("/health")

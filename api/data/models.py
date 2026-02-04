@@ -126,10 +126,6 @@ class Order(Base):
     error_message = Column(Text, nullable=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     meta_data = Column(Text, nullable=True)
-    parent_order_id = Column(
-        Integer, ForeignKey("orders.id", ondelete="SET NULL"), nullable=True
-    )
-    parent_tag = Column(String(36), index=True, nullable=True)
     signal_id = Column(
         Integer, ForeignKey("signals.id", ondelete="SET NULL"), nullable=True
     )
