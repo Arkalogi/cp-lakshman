@@ -84,7 +84,7 @@ function DataTable({ columns, rows }) {
     }
     const keys = new Set();
     rows.forEach((row) => Object.keys(row || {}).forEach((key) => keys.add(key)));
-    return Array.from(keys);
+    return Array.from(keys).filter((key) => key !== "__actions");
   }, [columns, rows]);
 
   if (!rows?.length) {
@@ -121,8 +121,15 @@ function formatCell(value) {
   if (value === null || value === undefined) {
     return "";
   }
+  if (React.isValidElement(value)) {
+    return "";
+  }
   if (typeof value === "object") {
-    return JSON.stringify(value);
+    try {
+      return JSON.stringify(value);
+    } catch (error) {
+      return "[object]";
+    }
   }
   return String(value);
 }

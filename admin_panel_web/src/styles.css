@@ -397,6 +397,50 @@ th {
   background: rgba(255, 255, 255, 0.7);
 }
 
+.toast-stack {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 100;
+}
+
+.toast {
+  background: #111622;
+  color: #fff;
+  padding: 12px 14px;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 260px;
+  max-width: 360px;
+}
+
+.toast-success {
+  background: #1f6f4a;
+}
+
+.toast-error {
+  background: #8d2f1f;
+}
+
+.toast-info {
+  background: #203a6e;
+}
+
+.toast-dismiss {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

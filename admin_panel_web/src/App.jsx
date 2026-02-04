@@ -4,16 +4,13 @@ import {
   deleteEntity,
   health,
   listEntities,
-  listOrders,
-  listSignalOrders,
   normalizeBaseUrl,
-  updateOrderStatus,
   updateEntity,
 } from "./api.js";
 import CopyMonitor from "./components/CopyMonitor.jsx";
 import EntitySection from "./components/EntitySection.jsx";
-import OrderMonitor from "./components/OrderMonitor.jsx";
 import SignalsSection from "./components/SignalsSection.jsx";
+import { useNotifications } from "./components/Notifications.jsx";
 
 const DEFAULT_BASE_URL = "http://localhost:8000";
 
@@ -120,15 +117,7 @@ export default function App() {
   const [healthStatus, setHealthStatus] = useState("unknown");
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [notice, setNotice] = useState("");
-  const [error, setError] = useState("");
-  const [orders, setOrders] = useState([]);
-  const [ordersTotal, setOrdersTotal] = useState(0);
-  const [ordersLimit, setOrdersLimit] = useState(20);
-  const [ordersOffset, setOrdersOffset] = useState(0);
-  const [expandedSignalId, setExpandedSignalId] = useState(null);
-  const [childOrdersBySignalId, setChildOrdersBySignalId] = useState({});
-  const [loadingSignalId, setLoadingSignalId] = useState(null);
+  const notifications = useNotifications();
   const [data, setData] = useState(() =>
     entityConfigs.reduce((acc, entity) => {
       acc[entity.key] = [];
@@ -151,24 +140,16 @@ export default function App() {
       return;
     }
     setIsLoading(true);
-    setError("");
     try {
       await Promise.all(
         entityConfigs.map((entity) => refreshEntity(entity.key, entity.endpoint))
       );
       await refreshEntity("signals", "/signals");
-      const ordersPage = await listOrders(
-        normalizedBaseUrl,
-        ordersLimit,
-        ordersOffset
-      );
-      setOrders(ordersPage.items);
-      setOrdersTotal(ordersPage.total);
       const status = await health(normalizedBaseUrl);
       setHealthStatus(status);
-      setNotice("Data refreshed.");
+      notifications.success("Data refreshed.");
     } catch (err) {
-      setError(err.message || "Failed to refresh.");
+      notifications.error(err.message || "Failed to refresh.");
     } finally {
       setIsLoading(false);
     }
@@ -191,131 +172,43 @@ export default function App() {
 
   const handleCreate = async (entity, payload, errorObj) => {
     if (errorObj) {
-      setError(errorObj.message);
+      notifications.error(errorObj.message);
       return;
     }
     try {
       await createEntity(normalizedBaseUrl, entity.endpoint, payload);
       await refreshEntity(entity.key, entity.endpoint);
-      setNotice(`${entity.title} created.`);
+      notifications.success(`${entity.title} created.`);
     } catch (err) {
-      setError(err.message || "Create failed.");
+      notifications.error(err.message || "Create failed.");
     }
   };
 
   const handleUpdate = async (entity, id, payload, errorObj) => {
     if (errorObj) {
-      setError(errorObj.message);
+      notifications.error(errorObj.message);
       return;
     }
     try {
       await updateEntity(normalizedBaseUrl, entity.endpoint, id, payload);
       await refreshEntity(entity.key, entity.endpoint);
-      setNotice(`${entity.title} updated.`);
+      notifications.success(`${entity.title} updated.`);
     } catch (err) {
-      setError(err.message || "Update failed.");
+      notifications.error(err.message || "Update failed.");
     }
   };
 
   const handleDelete = async (entity, id, errorObj) => {
     if (errorObj) {
-      setError(errorObj.message);
+      notifications.error(errorObj.message);
       return;
     }
     try {
       await deleteEntity(normalizedBaseUrl, entity.endpoint, id);
       await refreshEntity(entity.key, entity.endpoint);
-      setNotice(`${entity.title} deleted.`);
+      notifications.success(`${entity.title} deleted.`);
     } catch (err) {
-      setError(err.message || "Delete failed.");
-    }
-  };
-
-  const handleOrderRefresh = async () => {
-    try {
-      const ordersPage = await listOrders(
-        normalizedBaseUrl,
-        ordersLimit,
-        ordersOffset
-      );
-      setOrders(ordersPage.items);
-      setOrdersTotal(ordersPage.total);
-      setNotice("Orders refreshed.");
-    } catch (err) {
-      setError(err.message || "Failed to refresh orders.");
-    }
-  };
-
-  const handleOrdersNext = async () => {
-    const nextOffset = ordersOffset + ordersLimit;
-    setOrdersOffset(nextOffset);
-    try {
-      const ordersPage = await listOrders(
-        normalizedBaseUrl,
-        ordersLimit,
-        nextOffset
-      );
-      setOrders(ordersPage.items);
-      setOrdersTotal(ordersPage.total);
-    } catch (err) {
-      setError(err.message || "Failed to load next orders page.");
-    }
-  };
-
-  const handleOrdersPrev = async () => {
-    const nextOffset = Math.max(0, ordersOffset - ordersLimit);
-    setOrdersOffset(nextOffset);
-    try {
-      const ordersPage = await listOrders(
-        normalizedBaseUrl,
-        ordersLimit,
-        nextOffset
-      );
-      setOrders(ordersPage.items);
-      setOrdersTotal(ordersPage.total);
-    } catch (err) {
-      setError(err.message || "Failed to load previous orders page.");
-    }
-  };
-
-  const handleToggleChildren = async (order) => {
-    if (!order?.signal_id) {
-      setError("Signal ID is required to load signal orders.");
-      return;
-    }
-    if (expandedSignalId === order.signal_id) {
-      setExpandedSignalId(null);
-      return;
-    }
-    setExpandedSignalId(order.signal_id);
-    if (childOrdersBySignalId[order.signal_id]) {
-      return;
-    }
-    setLoadingSignalId(order.signal_id);
-    try {
-      const list = await listSignalOrders(normalizedBaseUrl, order.signal_id);
-      setChildOrdersBySignalId((prev) => ({
-        ...prev,
-        [order.signal_id]: list,
-      }));
-    } catch (err) {
-      setError(err.message || "Failed to load signal orders.");
-    } finally {
-      setLoadingSignalId(null);
-    }
-  };
-
-  const handleUpdateOrderStatus = async (orderId, payload, errorObj) => {
-    if (errorObj) {
-      setError(errorObj.message);
-      return;
-    }
-    try {
-      await updateOrderStatus(normalizedBaseUrl, orderId, payload);
-      await handleOrderRefresh();
-      setNotice("Order status updated.");
-    } catch (err) {
-      setError(err.message || "Failed to update order.");
+      notifications.error(err.message || "Delete failed.");
     }
   };
 
@@ -368,31 +261,16 @@ export default function App() {
             Auto refresh (5s)
           </label>
         </div>
-        {notice ? <div className="notice">{notice}</div> : null}
-        {error ? <div className="error">{error}</div> : null}
       </section>
 
       <CopyMonitor strategySubs={data.strategy_subscriptions} />
 
       <SignalsSection
         signals={data.signals}
+        baseUrl={normalizedBaseUrl}
+        onError={(message) => notifications.error(message)}
         onCreate={(payload, errorObj) => handleCreate({ key: "signals", endpoint: "/signals", title: "Signals" }, payload, errorObj)}
         onRefresh={() => refreshEntity("signals", "/signals")}
-      />
-
-      <OrderMonitor
-        orders={orders}
-        total={ordersTotal}
-        limit={ordersLimit}
-        offset={ordersOffset}
-        onRefresh={handleOrderRefresh}
-        onToggleChildren={handleToggleChildren}
-        expandedOrderId={expandedSignalId}
-        childOrdersBySignalId={childOrdersBySignalId}
-        loadingSignalId={loadingSignalId}
-        onNext={handleOrdersNext}
-        onPrev={handleOrdersPrev}
-        onUpdateStatus={handleUpdateOrderStatus}
       />
 
       {entityConfigs.map((entity) => (
