@@ -1,17 +1,16 @@
 import asyncio
-import uuid
 import requests
 import pyotp
 import base64
+from uvicorn import Config
 import websocket
 import logging
-import json
 from typing import Dict
 from api.commons import enums
 from api.data import red
 from urllib.parse import urlencode, urlparse, parse_qs
 
-from api.data import database
+from api.data import database, upstox_feed_parser, upstox_json_format
 from api.data.models import Order
 
 logger = logging.getLogger(__name__)
@@ -45,16 +44,15 @@ class UpstoxApi:
         self._filled_by_order: Dict[str, int] = {}
         self._loop = None
 
-    async def start_order_update_socket(self, access_token: str):
-        headers = {"Authorization": f"Bearer {access_token}"}
+    async def start_order_update_socket(self, livefeed_token: str, livefeed_refresh_token: str):
         self._loop = asyncio.get_running_loop()
         ws = websocket.WebSocketApp(
-            "wss://api.upstox.com/v2/feed/portfolio-stream-feed?update_types=order",
-            header=headers,
+            "wss://market-data.upstox.com/market-data-feeder/v2/feeds",
             on_open=self.on_open,
             on_message=self.on_message,
             on_error=self.on_error,
             on_close=self.on_close,
+            cookie=f"access_token={livefeed_token};refresh_token={livefeed_refresh_token}",
         )
         await asyncio.to_thread(ws.run_forever, reconnect=5)
         logger.info("Order update socket disconnected, reconnecting")
@@ -140,80 +138,28 @@ class UpstoxApi:
         logger.info("Order update socket is connected.")
 
     def on_message(self, ws, message: dict):
-        logger.info("Message: %s", message)
-        try:
-            message_json = json.loads(message)
-            update_type = message_json.get("update_type")
-            if update_type != "order":
-                return
+        if self.backfilling:
+            return
+        message = upstox_feed_parser.FeedResponse.FromString(message)
+        message = upstox_json_format.MessageToDict(message)
+        if "feeds" not in message:
+            return
+        for token, token_message in message["feeds"].items():
+            if token not in self.subscribed_tokens:
+                continue
+            ff_json = token_message["fullFeed"]
+            market_ff_json = ff_json.get("marketFF", ff_json.get("indexFF"))
+            market_ohlc_json = market_ff_json["marketOHLC"]
+            ohlcs_json = market_ohlc_json["ohlc"]
 
-            status = message_json.get("status")
-            exchange = message_json.get("exchange")
-            exchange_value = (
-                exchange[0] if isinstance(exchange, list) and exchange else exchange
-            )
-            if exchange_value not in {"NFO", "BFO"}:
-                return
-
-            instrument_token = message_json["instrument_token"]
-            instrument_id = instrument_token.split("|")[1]
-            trading_symbol = message_json.get("trading_symbol")
-            user_id = message_json.get("user_id")
-            order_id = message_json.get("order_id")
-            side = message_json.get("transaction_type")
-            average_price = message_json.get("average_price")
-            filled_quantity = int(float(message_json.get("filled_quantity") or 0))
-            logger.info(
-                "Order(id=%s user_id=%s instrument_id=%s status=%s side=%s average_price=%s filled_quantity=%s)",
-                order_id,
-                user_id,
-                instrument_id,
-                status,
-                side,
-                average_price,
-                filled_quantity,
-            )
-            previous_filled = self._filled_by_order.get(order_id, 0)
-            if filled_quantity <= previous_filled:
-                return
-
-            new_order_quantity = filled_quantity - previous_filled
-            self._filled_by_order[order_id] = filled_quantity
-            tag = str(uuid.uuid4())
-            quantity_processed[tag] = new_order_quantity
-
-            order = Order(
-                tag=tag,
-                instrument_token=instrument_token,
-                trading_symbol=trading_symbol,
-                side=_map_order_side(side),
-                quantity=int(new_order_quantity),
-                price=_coerce_price(average_price, message_json.get("price")),
-                status=enums.OrderStatus.COMPLETED.value,
-                broker_order_id=order_id,
-                filled_quantity=int(new_order_quantity),
-                average_price=_coerce_price(average_price, None),
-                api_id=self.api_id,
-                meta_data=json.dumps(message_json, separators=(",", ":"), ensure_ascii=True),
-            )
-            self.order_with_filled_quantity[tag] = order
-            order_signal = {
-                "target_id": self.api_id,
-                "order_id": tag,
-                "instrument_id": instrument_id,
-                "trading_symbol": trading_symbol,
-                "side": side,
-                "average_price": average_price,
-                "quantity": new_order_quantity,
-                "status": enums.OrderStatus.PENDING.value,
-            }
-            red.get_redis().rpush(
-                red.ORDER_SIGNAL_LIST,
-                json.dumps(order_signal, separators=(",", ":"), ensure_ascii=True),
-            )
-            self._persist_order_async(order)
-        except Exception:
-            logger.exception("Failed to process order update message.")
+            i1_ohlcs_json = [
+                ohlc_json
+                for ohlc_json in ohlcs_json
+                if ohlc_json.get("interval") == "I1"
+            ]
+            if len(i1_ohlcs_json) < 1:
+                continue
+            latest_i1_ohlc_json = i1_ohlcs_json[-1]
 
     def on_error(self, ws, message: dict):
         logger.info(f"Order update error: {message}")
