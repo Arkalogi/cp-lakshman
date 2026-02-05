@@ -37,6 +37,11 @@ class DematApiConfigSchema(BaseModel):
             and self.api_provider != enums.ApiProvider.PAPER
         ):
             raise ValueError("ARKALOGI must use PAPER api_provider")
+        if (
+            self.demat_provider == enums.DematProvider.ANGELONE
+            and self.api_provider != enums.ApiProvider.ANGELONE
+        ):
+            raise ValueError("ANGELONE must use ANGELONE api_provider")
         return self
 
 

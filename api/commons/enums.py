@@ -10,6 +10,7 @@ class ApiProvider(Enum):
     UPSTOX = "upstox"
     KITE = "kite"
     SHOONYA = "shoonya"
+    ANGELONE = "angelone"
     PAPER = "paper"
 
 
@@ -17,6 +18,7 @@ class DematProvider(Enum):
     UPSTOX = "upstox"
     ZERODHA = "zerodha"
     FINVASIA = "finvasia"
+    ANGELONE = "angelone"
     ARKALOGI = "arkalogi"
 
 
