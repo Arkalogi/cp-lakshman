@@ -6,3 +6,4 @@ aiomysql==0.3.2
 alembic==1.18.1
 redis>=5.0.0
 requests>=2.31.0
+cryptography>=42.0.0

@@ -193,6 +193,11 @@ class WatchlistInstrument(Base):
     id = Column(Integer, primary_key=True, index=True)
     watchlist_id = Column(Integer, ForeignKey("watchlists.id", ondelete="CASCADE"))
     instrument_id = Column(String(12), nullable=False)
+    watchlist = relationship(
+        "Watchlist",
+        back_populates="instruments",
+        foreign_keys=[watchlist_id],
+    )
 
     __table_args__ = (
         UniqueConstraint(

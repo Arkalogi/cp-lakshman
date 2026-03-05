@@ -38,10 +38,12 @@ Production stack behavior:
 
 ## Notes
 
-- API container runs migrations automatically on startup:
-  - `alembic upgrade head`
+- API container bootstraps schema automatically on startup:
+  - `python -m api.db_bootstrap`
 - Internal postback auth is controlled by:
   - `INTERNAL_POSTBACK_TOKEN`
+- Startup strictness for master data is controlled by:
+  - `REQUIRE_MASTER_DATA_ON_STARTUP` (`False` for local, `True` for production by default)
 - DB URL and Redis URL are injected by compose:
   - `DATABASE_URL=mysql+aiomysql://...@mysql:3306/...`
   - `REDIS_URL=redis://redis:6379/0`

@@ -50,6 +50,7 @@ def download_xts_master_data():
         "exchangeSegmentList": ["NSEFO", "NSECM", "BSECM", "BSEFO"],
     }
     response = requests.post(XTS_MASTER_DATA_URL, headers=HEADERS, data=json.dumps(payload))
+    print(f"XTS master data download response: {response.status_code}, {response.text[:200]}...")
     if response.status_code == 200:
         return response.json()["result"].strip()
     else:
@@ -60,6 +61,8 @@ def download_xts_master_data():
 
 def load_xts_master_data_from_file() -> str:
     file_path = Config.DATA_DIR + "/" + Config.XTS_MASTER_DATA_FILE_PATH
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(file_path)
     with open(file_path, "r") as file:
         data = file.read()
     return data
@@ -238,7 +241,22 @@ async def load_master_data() -> bool:
             xts_data = await asyncio.to_thread(download_xts_master_data)
             await asyncio.to_thread(store_xts_master_data, xts_data)
         else:
-            xts_data = await asyncio.to_thread(load_xts_master_data_from_file)
+            try:
+                xts_data = await asyncio.to_thread(load_xts_master_data_from_file)
+            except FileNotFoundError as e:
+                logger.warning(
+                    "Master data file not found at %s. Falling back to database cache.",
+                    str(e),
+                )
+                loaded = await _load_master_cache_from_db()
+                if loaded:
+                    logger.info(
+                        "Master data loaded from database fallback: %d instruments",
+                        len(MASTER_DATA),
+                    )
+                else:
+                    logger.warning("Master data unavailable after load attempt.")
+                return loaded
         instruments = await asyncio.to_thread(parser_xts_master_data, xts_data)
         await _persist_master_data(instruments)
         _refresh_master_cache(instruments)

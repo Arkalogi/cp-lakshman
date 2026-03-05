@@ -11,6 +11,7 @@ from api.signals.routes import router as signals_router
 from api.master_data.routes import router as master_data_router
 from api.watchlists.routes import router as watchlists_router
 from api.data.utils import load_master_data, get_master_data_count
+from api.config import Config
 
 
 logging.basicConfig(
@@ -48,7 +49,10 @@ async def load_master_data_at_startup():
     count = get_master_data_count()
     logger.info("Master data ready: loaded=%s count=%s", loaded, count)
     if count == 0:
-        raise RuntimeError("Master data load failed; no instruments available")
+        msg = "Master data load failed; no instruments available"
+        if Config.REQUIRE_MASTER_DATA_ON_STARTUP:
+            raise RuntimeError(msg)
+        logger.warning("%s; continuing startup because REQUIRE_MASTER_DATA_ON_STARTUP=false", msg)
 
 
 @app.get("/health")

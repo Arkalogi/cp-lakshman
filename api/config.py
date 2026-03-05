@@ -12,3 +12,6 @@ class Config:
     XTS_BASE_URL = os.getenv("XTS_BASE_URL", "https://ttblaze.iifl.com")
     XTS_MASTER_DATA_FILE_PATH = os.getenv("XTS_MASTER_DATA_FILE_PATH", "xts_master_data.csv")
     INTERNAL_POSTBACK_TOKEN = os.getenv("INTERNAL_POSTBACK_TOKEN", "")
+    REQUIRE_MASTER_DATA_ON_STARTUP = (
+        os.getenv("REQUIRE_MASTER_DATA_ON_STARTUP", "False").lower() == "true"
+    )
