@@ -27,14 +27,30 @@ async def thread_spawn_loop():
         if not payload:
             continue
         try:
-            routed_signal = json.loads(payload[1])
+            raw_payload = payload[1]
+            routed_signal = json.loads(raw_payload)
             subscriber_id = routed_signal.get("subscriber_id")
             signal_id = routed_signal.get("signal_id")
             if subscriber_id is None or signal_id is None:
                 logger.warning("Skipping invalid routed signal payload: %s", routed_signal)
                 continue
 
+            checkpoint_key = f"signal:{signal_id}:subscriber:{subscriber_id}"
             async with database.DbAsyncSession() as db:
+                checkpoint = await db.execute(
+                    select(models.WorkerCheckpoint).where(
+                        models.WorkerCheckpoint.worker_name == "order_router",
+                        models.WorkerCheckpoint.event_key == checkpoint_key,
+                    )
+                )
+                if checkpoint.scalars().one_or_none():
+                    logger.info(
+                        "Skipping already routed signal %s for subscriber %s",
+                        signal_id,
+                        subscriber_id,
+                    )
+                    continue
+
                 result = await db.execute(
                     select(models.DematApi).where(models.DematApi.id == subscriber_id)
                 )
@@ -45,6 +61,7 @@ async def thread_spawn_loop():
 
                 broker = build_broker_client(demat_api)
                 broker_result = await broker.place_order(routed_signal)
+                broker_status = None
 
                 result = await db.execute(
                     select(models.Order).where(
@@ -82,6 +99,15 @@ async def thread_spawn_loop():
                     },
                     separators=(",", ":"),
                     ensure_ascii=True,
+                )
+                db.add(
+                    models.WorkerCheckpoint(
+                        worker_name="order_router",
+                        event_key=checkpoint_key,
+                        payload=raw_payload.decode("utf-8", errors="replace")
+                        if isinstance(raw_payload, (bytes, bytearray))
+                        else str(raw_payload),
+                    )
                 )
                 db.add(order)
                 await db.commit()

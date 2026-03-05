@@ -191,3 +191,17 @@ class WatchlistInstrument(Base):
         ),
     )
 
+
+class WorkerCheckpoint(Base):
+    __tablename__ = "worker_checkpoints"
+
+    id = Column(Integer, primary_key=True, index=True)
+    worker_name = Column(String(50), nullable=False)
+    event_key = Column(String(100), nullable=False)
+    payload = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("worker_name", "event_key", name="uq_worker_event"),
+    )
+

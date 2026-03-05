@@ -1,0 +1,16 @@
+[
+  {
+    "name": "block_large_qty",
+    "when": {
+      "max_qty": 100000
+    },
+    "action": "block"
+  },
+  {
+    "name": "block_symbols_example",
+    "when": {
+      "symbol_in": []
+    },
+    "action": "block"
+  }
+]
