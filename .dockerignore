@@ -1,0 +1,16 @@
+.git
+.gitignore
+env
+node_modules
+admin_panel_web/node_modules
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.log
+*.sqlite3
+data
+.env
+.env.*
+!.env.local
+!.env.production
