@@ -8,6 +8,9 @@ from api.strategy_subscriptions.routes import router as strategy_subscriptions_r
 from api.users.routes import router as users_router
 from api.orders.routes import router as orders_router
 from api.signals.routes import router as signals_router
+from api.master_data.routes import router as master_data_router
+from api.watchlists.routes import router as watchlists_router
+from api.data.utils import load_master_data, get_master_data_count
 
 
 logging.basicConfig(
@@ -35,6 +38,17 @@ app.include_router(demat_apis_router)
 app.include_router(strategy_subscriptions_router)
 app.include_router(orders_router)
 app.include_router(signals_router)
+app.include_router(master_data_router)
+app.include_router(watchlists_router)
+
+
+@app.on_event("startup")
+async def load_master_data_at_startup():
+    loaded = await load_master_data()
+    count = get_master_data_count()
+    logger.info("Master data ready: loaded=%s count=%s", loaded, count)
+    if count == 0:
+        raise RuntimeError("Master data load failed; no instruments available")
 
 
 @app.get("/health")

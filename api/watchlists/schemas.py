@@ -12,7 +12,10 @@ class WatchlistCreateSchema(BaseModel):
 class WatchlistUpdateSchema(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
-    instruments: Optional[list[int]] = None
+
+
+class WatchlistInstrumentAddSchema(BaseModel):
+    instrument_id: str
 
 
 

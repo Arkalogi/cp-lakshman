@@ -2,6 +2,7 @@
 
 This project now supports Docker-based local and production deployment for:
 - API service (`FastAPI`)
+- Frontend (`React + Vite`)
 - MySQL
 - Redis
 
@@ -16,6 +17,7 @@ docker compose --env-file .env.local -f deploy/docker-compose.local.yml up --bui
 
 Local stack behavior:
 - API available on `http://localhost:${API_PORT}` (default `8000`)
+- Frontend available on `http://localhost:${FRONTEND_PORT}` (default `5173`)
 - Hot reload enabled (`uvicorn --reload`)
 - MySQL and Redis ports exposed for local tools
 
@@ -32,6 +34,7 @@ Production stack behavior:
 - No code bind-mount
 - No reload mode
 - Restart policy `always`
+- Frontend served by Nginx on `FRONTEND_PORT`
 
 ## Notes
 

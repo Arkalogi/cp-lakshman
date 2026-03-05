@@ -3,9 +3,15 @@ import json
 import os
 import logging
 import requests
-from typing import Iterable, List, Optional
+from typing import Any, Iterable, List, Optional
 from sqlalchemy import insert, select
-from api.data.local import MASTER_DATA, TOKEN_MAP
+from api.data.local import (
+    MASTER_DATA,
+    MASTER_DATA_LIST,
+    MASTER_DATA_SERIALIZED,
+    TOKEN_MAP,
+    UNDERLYING_INDEX,
+)
 from api.data.models import Instrument
 from api.data import models, database
 from api.commons.constants import ZERODHA_MASTER_DATA_URL
@@ -68,25 +74,25 @@ def store_xts_master_data(data: str):
 
 def parser_xts_master_data(master_data: str) -> List[Instrument]:
     lines = master_data.split("\n")
-    EXCHANGE_INDEX = 0
-    INSTRUMENT_ID_INDEX = 1
-    UNDERLYING_INDEX = 3
-    INSTRUMENT_TYPE_INDEX = 5
+    EXCHANGE_COLUMN = 0
+    INSTRUMENT_ID_COLUMN = 1
+    UNDERLYING_COLUMN = 3
+    INSTRUMENT_TYPE_COLUMN = 5
     FREEZE_QTY_COLUMN = 10
-    LOT_SIZE_INDEX = 12
-    EXPIRY_INDEX = 16
-    STRIKE_INDEX = 17
-    OPTION_TYPE_INDEX = 18
+    LOT_SIZE_COLUMN = 12
+    EXPIRY_COLUMN = 16
+    STRIKE_COLUMN = 17
+    OPTION_TYPE_COLUMN = 18
     instruments: List[Instrument] = []
     for line in lines[1:]:
         if line.strip() == "":
             continue
         parts = line.split("|")
-        exchange = parts[EXCHANGE_INDEX].lower()
+        exchange = parts[EXCHANGE_COLUMN].lower()
         if exchange not in Exchange._value2member_map_:
             continue
         exchange_enum = Exchange(exchange)
-        instrument_type = parts[INSTRUMENT_TYPE_INDEX]
+        instrument_type = parts[INSTRUMENT_TYPE_COLUMN]
         if instrument_type in ["OPTSTK", "OPTIDX"]:
             instrument_type_enum = InstrumentType.OPT
         elif instrument_type in ["FUTSTK", "FUTIDX"]:
@@ -95,12 +101,12 @@ def parser_xts_master_data(master_data: str) -> List[Instrument]:
             instrument_type_enum = InstrumentType.EQ
         else:
             continue
-        instrument_id = parts[INSTRUMENT_ID_INDEX]
-        underlying = parts[UNDERLYING_INDEX]
-        lot_size = parts[LOT_SIZE_INDEX]
-        expiry = parts[EXPIRY_INDEX]
-        strike = parts[STRIKE_INDEX]
-        option_type = parts[OPTION_TYPE_INDEX]
+        instrument_id = parts[INSTRUMENT_ID_COLUMN]
+        underlying = parts[UNDERLYING_COLUMN]
+        lot_size = parts[LOT_SIZE_COLUMN]
+        expiry = parts[EXPIRY_COLUMN]
+        strike = parts[STRIKE_COLUMN]
+        option_type = parts[OPTION_TYPE_COLUMN]
         expiry_date = expiry.split("T")[0] if instrument_type_enum != InstrumentType.EQ else None
         expiry_int = expiry_date.replace("-", "") if expiry_date else None
         option_type_enum = None
@@ -155,12 +161,40 @@ def _chunked(items: Iterable[dict], size: int) -> Iterable[List[dict]]:
         yield batch
 
 
+def _serialize_instrument(instrument: Instrument) -> dict[str, Any]:
+    return {
+        "instrument_id": instrument.instrument_id,
+        "exchange": instrument.exchange.value if instrument.exchange else None,
+        "trading_symbol": instrument.trading_symbol,
+        "underlying": instrument.underlying,
+        "instrument_type": (
+            instrument.instrument_type.value if instrument.instrument_type else None
+        ),
+        "lot_size": instrument.lot_size,
+        "freeze_quantity": instrument.freeze_quantity,
+        "expiry": instrument.expiry,
+        "strike": instrument.strike,
+        "option_type": instrument.option_type.value if instrument.option_type else None,
+    }
+
+
 def _refresh_master_cache(instruments: List[Instrument]) -> None:
     MASTER_DATA.clear()
     TOKEN_MAP.clear()
+    MASTER_DATA_SERIALIZED.clear()
+    MASTER_DATA_LIST.clear()
+    UNDERLYING_INDEX.clear()
     for instrument in instruments:
         MASTER_DATA[instrument.instrument_id] = instrument
         TOKEN_MAP[instrument.trading_symbol] = instrument.instrument_id
+        serialized = _serialize_instrument(instrument)
+        MASTER_DATA_SERIALIZED[instrument.instrument_id] = serialized
+        MASTER_DATA_LIST.append(serialized)
+        underlying_key = (serialized["underlying"] or "").upper()
+        if underlying_key:
+            UNDERLYING_INDEX.setdefault(underlying_key, []).append(
+                instrument.instrument_id
+            )
 
 
 async def _persist_master_data(instruments: List[Instrument]) -> None:
@@ -198,7 +232,7 @@ async def _load_master_cache_from_db() -> bool:
     return True
 
 
-async def load_master_data():
+async def load_master_data() -> bool:
     try:
         if Config.DOWNLOAD_XTS_MASTER_DATA:
             xts_data = await asyncio.to_thread(download_xts_master_data)
@@ -208,10 +242,19 @@ async def load_master_data():
         instruments = await asyncio.to_thread(parser_xts_master_data, xts_data)
         await _persist_master_data(instruments)
         _refresh_master_cache(instruments)
+        logger.info("Master data loaded from source: %d instruments", len(MASTER_DATA))
+        return True
     except Exception as e:
         logger.exception("Error loading master data: %s", e)
-        await _load_master_cache_from_db()
-        return
+        loaded = await _load_master_cache_from_db()
+        if loaded:
+            logger.info(
+                "Master data loaded from database fallback: %d instruments",
+                len(MASTER_DATA),
+            )
+        else:
+            logger.warning("Master data unavailable after load attempt.")
+        return loaded
     
 def get_instrument_by_id(instrument_id: str) -> Optional[Instrument]:
     return MASTER_DATA.get(instrument_id)
@@ -222,10 +265,72 @@ def get_instrument_by_trading_symbol(trading_symbol: str) -> Optional[Instrument
         return MASTER_DATA.get(instrument_id)
     return None
 
+
+def get_master_data_snapshot() -> List[dict[str, Any]]:
+    return MASTER_DATA_LIST
+
+
+def get_master_data_count() -> int:
+    return len(MASTER_DATA_LIST)
+
+
+def get_instrument_payload_by_id(instrument_id: str) -> Optional[dict[str, Any]]:
+    return MASTER_DATA_SERIALIZED.get(instrument_id)
+
+
+def search_instruments(
+    *,
+    trading_symbol: Optional[str] = None,
+    underlying: Optional[str] = None,
+    exchange: Optional[str] = None,
+    instrument_type: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> dict[str, Any]:
+    limit = max(1, min(limit, 1000))
+    offset = max(0, offset)
+
+    filtered_ids: Optional[set[str]] = None
+    if underlying:
+        filtered_ids = set(UNDERLYING_INDEX.get(underlying.upper(), []))
+
+    if filtered_ids is not None:
+        rows = [
+            MASTER_DATA_SERIALIZED[instrument_id]
+            for instrument_id in filtered_ids
+            if instrument_id in MASTER_DATA_SERIALIZED
+        ]
+    else:
+        rows = MASTER_DATA_LIST
+
+    symbol_filter = trading_symbol.lower() if trading_symbol else None
+    exchange_filter = exchange.lower() if exchange else None
+    type_filter = instrument_type.lower() if instrument_type else None
+
+    if symbol_filter or exchange_filter or type_filter:
+
+        def _matches(item: dict[str, Any]) -> bool:
+            if symbol_filter and symbol_filter not in (item["trading_symbol"] or "").lower():
+                return False
+            if exchange_filter and exchange_filter != (item["exchange"] or "").lower():
+                return False
+            if type_filter and type_filter != (item["instrument_type"] or "").lower():
+                return False
+            return True
+
+        rows = [item for item in rows if _matches(item)]
+
+    total = len(rows)
+    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "items": rows[offset : offset + limit],
+    }
+
 async def get_current_price(instrument_id: str) -> Optional[float]:
     # price_data = PRICE_CACHE
     # if not price_data:
     #     return None
     # return price_data.get(instrument_id)
     return 200.0  # Placeholder for current price retrieval logic
-

@@ -50,9 +50,17 @@ async def delete_watchlist(watchlist_id: int):
 
 @router.post("/{watchlist_id}/items", response_model=ResponseSchema)
 async def add_watchlist_item(
-    watchlist_id: int, instrument_id: int
+    watchlist_id: int, payload: schemas.WatchlistInstrumentAddSchema
 ):
     try:
-        return await service.add_instrument_to_watchlist(watchlist_id, instrument_id)
+        return await service.add_instrument_to_watchlist(watchlist_id, payload)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/{watchlist_id}/items/{instrument_id}", response_model=ResponseSchema)
+async def remove_watchlist_item(watchlist_id: int, instrument_id: str):
+    try:
+        return await service.remove_instrument_from_watchlist(watchlist_id, instrument_id)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

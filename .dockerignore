@@ -2,6 +2,7 @@
 .gitignore
 env
 node_modules
+frontend/node_modules
 admin_panel_web/node_modules
 __pycache__
 *.pyc
