@@ -138,7 +138,7 @@ class UpstoxProvider:
         return self.ws
 
     def subscribe_to_tokens(self, tokens: list):
-        self.subscribed_tokens = ["NSE_INDEX|Nifty 50"]
+        self.subscribed_tokens.update(tokens)
         try:
             payload = {
                 "guid": "536e6b23-d527-4b30-b1a6-5bb024b3b591",
@@ -191,7 +191,9 @@ class UpstoxProvider:
                 ltpc = feed_value.get("ltpc")
                 if not ltpc:
                     full_feed = feed_value.get("fullFeed", {})
-                    market_feed = full_feed.get("marketFF") or full_feed.get("indexFF") or {}
+                    market_feed = (
+                        full_feed.get("marketFF") or full_feed.get("indexFF") or {}
+                    )
                     ltpc = market_feed.get("ltpc")
                 if not ltpc:
                     ltpc = feed_value.get("firstLevelWithGreeks", {}).get("ltpc")
