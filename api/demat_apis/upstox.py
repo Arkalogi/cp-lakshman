@@ -47,7 +47,7 @@ class UpstoxApi:
     async def start_order_update_socket(self, livefeed_token: str, livefeed_refresh_token: str):
         self._loop = asyncio.get_running_loop()
         ws = websocket.WebSocketApp(
-            "wss://market-data.upstox.com/market-data-feeder/v2/feeds",
+            "wss://api.upstox.com/v3/feed/market-data-feed",
             on_open=self.on_open,
             on_message=self.on_message,
             on_error=self.on_error,
