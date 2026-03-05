@@ -150,6 +150,19 @@ class UpstoxProvider:
         except Exception as e:
             logger.exception("Feed subscription failed")
 
+    def unsubscribe_from_tokens(self, tokens: list):
+        self.subscribed_tokens.difference_update(tokens)
+        try:
+            payload = {
+                "guid": "536e6b23-d527-4b30-b1a6-5bb024b3b591",
+                "method": "unsub",
+                "data": {"instrumentKeys": tokens, "mode": "full"},
+            }
+            logger.info(payload)
+            self.ws.send(json.dumps(payload).encode(), opcode=2)
+        except Exception as e:
+            logger.exception("Feed unsubscription failed")
+
     def on_error(self, ws, error):
         logger.error(f"Websocket error: {error}")
 
