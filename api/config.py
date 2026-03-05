@@ -1,5 +1,8 @@
+import os
+
+
 class Config:
-    DATABASE_URL = "mysql+aiomysql://root:admin@localhost:3306/copy_db"
+    DATABASE_URL = os.getenv("DATABASE_URL", "mysql+aiomysql://root:admin@localhost:3306/copy_db")
     EXTERNAL_REQUEST_TIMEOUT = 10
     DATA_DIR = "data"
     DOWNLOAD_KITE_MASTER_DATA = True
@@ -8,3 +11,4 @@ class Config:
     DOWNLOAD_XTS_MASTER_DATA = True
     XTS_BASE_URL = "https://ttblaze.iifl.com"
     XTS_MASTER_DATA_FILE_PATH = "xts_master_data.csv"
+    INTERNAL_POSTBACK_TOKEN = os.getenv("INTERNAL_POSTBACK_TOKEN", "")

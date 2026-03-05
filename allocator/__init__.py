@@ -1,1 +1,0 @@
-# Allocator service package.

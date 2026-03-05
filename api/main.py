@@ -40,13 +40,6 @@ app.include_router(master_data_router)
 app.include_router(signals_router)
 
 
-@app.on_event("startup")
-async def start_app():
-    logger.info("Loading master data")
-    await load_master_data()
-    app.state.master_data = MASTER_DATA
-    app.state.token_map = TOKEN_MAP
-
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
