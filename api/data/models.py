@@ -156,7 +156,9 @@ class Signal(Base):
     __tablename__ = "signals"
 
     id = Column(Integer, primary_key=True, index=True)
-    type = Column(Enum(SignalType), nullable=False, default=SignalType.ENTER_POSITION.value)
+    type = Column(
+        Enum(SignalType), nullable=False, default=SignalType.ENTER_POSITION.value
+    )
     strategy_id = Column(Integer, ForeignKey("strategies.id", ondelete="CASCADE"))
     instrument_id = Column(String(12), nullable=False)
     trading_symbol = Column(String(100), nullable=False)
@@ -176,6 +178,13 @@ class Watchlist(Base):
     description = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    instruments = relationship(
+        "WatchlistInstrument",
+        back_populates="watchlist",
+        cascade="all, delete-orphan",
+        foreign_keys="WatchlistInstrument.watchlist_id",
+    )
 
 
 class WatchlistInstrument(Base):
@@ -204,4 +213,3 @@ class WorkerCheckpoint(Base):
     __table_args__ = (
         UniqueConstraint("worker_name", "event_key", name="uq_worker_event"),
     )
-

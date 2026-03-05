@@ -5,7 +5,7 @@ import logging
 import requests
 from typing import Iterable, List, Optional
 from sqlalchemy import insert, select
-from api.data.local import MASTER_DATA, PRICE_CACHE, TOKEN_MAP
+from api.data.local import MASTER_DATA, TOKEN_MAP
 from api.data.models import Instrument
 from api.data import models, database
 from api.commons.constants import ZERODHA_MASTER_DATA_URL
