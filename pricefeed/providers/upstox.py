@@ -23,6 +23,7 @@ class UpstoxProvider:
         mobile_number: str,
         totp_secret: str,
         pin: str,
+        api_ws_url: str,
     ):
         self.api_key = api_key
         self.api_secret = api_secret
@@ -30,9 +31,12 @@ class UpstoxProvider:
         self.mobile_number = mobile_number
         self.totp_secret = totp_secret
         self.pin = pin
+        self.api_ws_url = api_ws_url
         self.access_token = None
         self.refresh_token = None
         self.logged_in = False
+        self.subscribed_tokens = set()
+        self.api_ws = None
 
     def login(self):
         with requests.Session() as session:
@@ -137,6 +141,16 @@ class UpstoxProvider:
             self.ws.run_forever(ping_interval=20, ping_timeout=10)
         return self.ws
 
+    def _connect_api_ws(self):
+        if not self.api_ws_url:
+            return
+        if self.api_ws and self.api_ws.connected:
+            return
+        self.api_ws = websocket.create_connection(self.api_ws_url, timeout=5)
+        self.api_ws.send(
+            json.dumps({"action": "register_feed", "source": "upstox_pricefeed"})
+        )
+
     def subscribe_to_tokens(self, tokens: list):
         self.subscribed_tokens.update(tokens)
         try:
@@ -170,9 +184,19 @@ class UpstoxProvider:
         logger.info(
             f"Websocket closed with code: {close_status_code}, message: {close_msg}"
         )
+        try:
+            if self.api_ws:
+                self.api_ws.close()
+        except Exception:
+            logger.debug("Failed to close API websocket cleanly.")
+        self.api_ws = None
 
     def on_open(self, ws):
         logger.info("Websocket connection opened.")
+        try:
+            self._connect_api_ws()
+        except Exception:
+            logger.exception("Failed to connect API websocket publisher.")
         self.subscribe_to_tokens(["NSE_INDEX|Nifty 50"])
 
     def _decode_feed_message(self, message):
@@ -212,6 +236,26 @@ class UpstoxProvider:
                     ltpc = feed_value.get("firstLevelWithGreeks", {}).get("ltpc")
 
             if ltpc:
+                try:
+                    self._connect_api_ws()
+                    if self.api_ws and self.api_ws.connected:
+                        self.api_ws.send(
+                            json.dumps(
+                                {
+                                    "action": "publish",
+                                    "instrument_id": instrument_key,
+                                    "price": ltpc.get("ltp"),
+                                    "ts": ltpc.get("ltt"),
+                                    "source": "upstox",
+                                }
+                            )
+                        )
+                except Exception:
+                    logger.exception(
+                        "Failed to publish tick for %s to API websocket",
+                        instrument_key,
+                    )
+                    self.api_ws = None
                 logger.info(
                     "Tick %s ltp=%s ltt=%s cp=%s",
                     instrument_key,

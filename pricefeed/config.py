@@ -14,5 +14,6 @@ class Config:
     UPSTOX_MOBILE_NUMBER = os.getenv("UPSTOX_MOBILE_NUMBER")
     UPSTOX_TOTP_SECRET = os.getenv("UPSTOX_TOTP_SECRET")
     UPSTOX_PIN = os.getenv("UPSTOX_PIN")
+    API_WS_URL = os.getenv("API_WS_URL", "ws://127.0.0.1:8000/ws/prices")
 
     

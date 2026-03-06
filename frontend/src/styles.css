@@ -48,6 +48,12 @@ h2 {
   text-transform: uppercase;
 }
 
+h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
+}
+
 p {
   margin: 0.3rem 0 0;
   color: var(--muted);
@@ -165,24 +171,88 @@ td {
   color: var(--ink);
 }
 
-.signal-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 0.45rem 0.15rem;
-  border-bottom: 1px dashed var(--line);
-}
-
-.scroll {
-  max-height: 340px;
-  overflow: auto;
-}
-
 .buy-text {
   color: #0f9658;
 }
 
 .sell-text {
   color: #d24949;
+}
+
+.price-badge {
+  display: inline-block;
+  min-width: 70px;
+  text-align: right;
+  padding: 0.2rem 0.45rem;
+  border-radius: 8px;
+  background: #edf4ee;
+  color: #445443;
+}
+
+.price-badge.live {
+  background: #daf3e4;
+  color: #145f39;
+  font-weight: 600;
+}
+
+.signal-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+}
+
+.signal-column {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.7rem;
+}
+
+.entry-col {
+  background: linear-gradient(180deg, #eefaf3 0%, #ffffff 55%);
+}
+
+.exit-col {
+  background: linear-gradient(180deg, #fff2f2 0%, #ffffff 55%);
+}
+
+.signal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 300px;
+  overflow: auto;
+}
+
+.signal-card {
+  border-radius: 10px;
+  padding: 0.55rem 0.6rem;
+  border: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.signal-card.entry {
+  background: #ffffff;
+}
+
+.signal-card.exit {
+  background: #fff8f8;
+}
+
+.signal-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.exit-btn {
+  background: #253d2e;
+}
+
+.depends-on {
+  font-size: 0.78rem;
+  color: #7a5a5a;
 }
 
 .toast {
@@ -222,5 +292,8 @@ td {
   .top {
     flex-direction: column;
     align-items: flex-start;
+  }
+  .signal-columns {
+    grid-template-columns: 1fr;
   }
 }

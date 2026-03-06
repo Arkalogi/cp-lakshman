@@ -16,6 +16,7 @@ if __name__ == "__main__":
         mobile_number=Config.UPSTOX_MOBILE_NUMBER,
         totp_secret=Config.UPSTOX_TOTP_SECRET,
         pin=Config.UPSTOX_PIN,
+        api_ws_url=Config.API_WS_URL,
     )
     upstox_provider.login()
     upstox_provider.start()

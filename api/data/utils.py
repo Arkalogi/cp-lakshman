@@ -9,6 +9,7 @@ from api.data.local import (
     MASTER_DATA,
     MASTER_DATA_LIST,
     MASTER_DATA_SERIALIZED,
+    PRICE_CACHE,
     TOKEN_MAP,
     UNDERLYING_INDEX,
 )
@@ -347,8 +348,4 @@ def search_instruments(
     }
 
 async def get_current_price(instrument_id: str) -> Optional[float]:
-    # price_data = PRICE_CACHE
-    # if not price_data:
-    #     return None
-    # return price_data.get(instrument_id)
-    return 200.0  # Placeholder for current price retrieval logic
+    return PRICE_CACHE.get(instrument_id)

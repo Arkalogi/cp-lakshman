@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
 
 const defaultUser = {
@@ -9,24 +9,67 @@ const defaultUser = {
   phone: `${Math.floor(9000000000 + Math.random() * 999999999)}`
 };
 
+function apiToWsUrl(apiBaseUrl) {
+  if (apiBaseUrl.startsWith("https://")) {
+    return apiBaseUrl.replace("https://", "wss://");
+  }
+  return apiBaseUrl.replace("http://", "ws://");
+}
+
 export default function App() {
   const [watchlists, setWatchlists] = useState([]);
   const [strategies, setStrategies] = useState([]);
   const [signals, setSignals] = useState([]);
   const [selectedWatchlistId, setSelectedWatchlistId] = useState(null);
   const [selectedStrategyId, setSelectedStrategyId] = useState("");
-  const [signalType, setSignalType] = useState("enter_position");
   const [searchText, setSearchText] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [watchlistName, setWatchlistName] = useState("");
   const [watchlistDescription, setWatchlistDescription] = useState("");
+  const [livePrices, setLivePrices] = useState({});
   const [toast, setToast] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const wsRef = useRef(null);
+  const subscribedRef = useRef(new Set());
 
   const selectedWatchlist = useMemo(
     () => watchlists.find((w) => w.id === selectedWatchlistId) || null,
     [watchlists, selectedWatchlistId]
   );
+
+  const watchedInstrumentIds = useMemo(
+    () => (selectedWatchlist?.items || []).map((item) => String(item.instrument_id)),
+    [selectedWatchlist]
+  );
+
+  const entrySignals = useMemo(
+    () =>
+      signals
+        .filter((s) => s.type === "enter_position")
+        .slice()
+        .sort((a, b) => b.id - a.id),
+    [signals]
+  );
+
+  const exitSignals = useMemo(
+    () =>
+      signals
+        .filter((s) => s.type === "exit_position")
+        .slice()
+        .sort((a, b) => b.id - a.id),
+    [signals]
+  );
+
+  const hasExitByEntryId = useMemo(() => {
+    const index = new Set();
+    for (const signal of exitSignals) {
+      if (signal.depends_on_signal_id) {
+        index.add(signal.depends_on_signal_id);
+      }
+    }
+    return index;
+  }, [exitSignals]);
 
   async function loadAll() {
     const [wl, st, sg] = await Promise.all([
@@ -36,7 +79,7 @@ export default function App() {
     ]);
     setWatchlists(wl || []);
     setStrategies(st || []);
-    setSignals((sg || []).slice().reverse().slice(0, 12));
+    setSignals(sg || []);
     if (!selectedWatchlistId && wl?.length) {
       setSelectedWatchlistId(wl[0].id);
     }
@@ -45,9 +88,78 @@ export default function App() {
     }
   }
 
+  function syncWsSubscriptions(nextIds) {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+    const current = subscribedRef.current;
+    const target = new Set(nextIds.map(String));
+    const toSubscribe = [...target].filter((id) => !current.has(id));
+    const toUnsubscribe = [...current].filter((id) => !target.has(id));
+
+    if (toSubscribe.length) {
+      ws.send(
+        JSON.stringify({
+          action: "subscribe",
+          instrument_ids: toSubscribe
+        })
+      );
+      toSubscribe.forEach((id) => current.add(id));
+    }
+    if (toUnsubscribe.length) {
+      ws.send(
+        JSON.stringify({
+          action: "unsubscribe",
+          instrument_ids: toUnsubscribe
+        })
+      );
+      toUnsubscribe.forEach((id) => current.delete(id));
+    }
+  }
+
   useEffect(() => {
     loadAll().catch((e) => setToast(e.message));
   }, []);
+
+  useEffect(() => {
+    const apiBase = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+    const ws = new WebSocket(`${apiToWsUrl(apiBase)}/ws/prices`);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      syncWsSubscriptions(watchedInstrumentIds);
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === "price" && data.instrument_id) {
+          setLivePrices((prev) => ({
+            ...prev,
+            [String(data.instrument_id)]: Number(data.price)
+          }));
+        }
+      } catch (error) {
+        setToast("Invalid websocket payload");
+      }
+    };
+
+    ws.onerror = () => {
+      setToast("Price websocket disconnected");
+    };
+
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+      wsRef.current = null;
+      subscribedRef.current = new Set();
+    };
+  }, []);
+
+  useEffect(() => {
+    syncWsSubscriptions(watchedInstrumentIds);
+  }, [watchedInstrumentIds.join(",")]);
 
   async function createQuickStrategy() {
     setBusy(true);
@@ -141,7 +253,7 @@ export default function App() {
     }
   }
 
-  async function sendSignal(instrumentId, side) {
+  async function sendEntrySignal(instrumentId, side) {
     if (!selectedStrategyId) {
       setToast("Select a strategy first.");
       return;
@@ -149,14 +261,37 @@ export default function App() {
     setBusy(true);
     try {
       await api.createSignal({
-        type: signalType,
+        type: "enter_position",
         strategy_id: Number(selectedStrategyId),
         instrument_id: instrumentId,
         side
       });
       const sg = await api.listSignals();
-      setSignals((sg || []).slice().reverse().slice(0, 12));
-      setToast(`${side.toUpperCase()} signal sent for ${instrumentId}.`);
+      setSignals(sg || []);
+      setToast(`${side.toUpperCase()} entry signal sent for ${instrumentId}.`);
+    } catch (e) {
+      setToast(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendExitSignal(entrySignal) {
+    if (!entrySignal) return;
+    if (hasExitByEntryId.has(entrySignal.id)) return;
+    setBusy(true);
+    try {
+      const oppositeSide = entrySignal.side === "buy" ? "sell" : "buy";
+      await api.createSignal({
+        type: "exit_position",
+        strategy_id: entrySignal.strategy_id,
+        instrument_id: entrySignal.instrument_id,
+        side: oppositeSide,
+        depends_on_signal_id: entrySignal.id
+      });
+      const sg = await api.listSignals();
+      setSignals(sg || []);
+      setToast(`Exit signal created for entry #${entrySignal.id}.`);
     } catch (e) {
       setToast(e.message);
     } finally {
@@ -169,7 +304,7 @@ export default function App() {
       <header className="top">
         <div>
           <h1>CopyTrade Desk</h1>
-          <p>Watchlists, discovery, and one-click signal dispatch.</p>
+          <p>Watchlists, discovery, live prices, and signal dispatch.</p>
         </div>
         <div className="signal-config">
           <select
@@ -182,10 +317,6 @@ export default function App() {
                 {s.name} (#{s.id})
               </option>
             ))}
-          </select>
-          <select value={signalType} onChange={(e) => setSignalType(e.target.value)}>
-            <option value="enter_position">enter_position</option>
-            <option value="exit_position">exit_position</option>
           </select>
           <button onClick={createQuickStrategy} disabled={busy}>
             Quick Strategy
@@ -277,56 +408,104 @@ export default function App() {
                   <tr>
                     <th>Symbol</th>
                     <th>Instrument ID</th>
+                    <th>Live Price</th>
                     <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(selectedWatchlist.items || []).map((item) => (
-                    <tr key={item.instrument_id}>
-                      <td>{item.trading_symbol}</td>
-                      <td>{item.instrument_id}</td>
-                      <td className="actions">
-                        <button
-                          className="buy"
-                          onClick={() => sendSignal(item.instrument_id, "buy")}
-                          disabled={busy}
-                        >
-                          BUY
-                        </button>
-                        <button
-                          className="sell"
-                          onClick={() => sendSignal(item.instrument_id, "sell")}
-                          disabled={busy}
-                        >
-                          SELL
-                        </button>
-                        <button
-                          className="ghost"
-                          onClick={() => removeFromWatchlist(item.instrument_id)}
-                          disabled={busy}
-                        >
-                          Remove
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {(selectedWatchlist.items || []).map((item) => {
+                    const live = livePrices[String(item.instrument_id)];
+                    return (
+                      <tr key={item.instrument_id}>
+                        <td>{item.trading_symbol}</td>
+                        <td>{item.instrument_id}</td>
+                        <td>
+                          <span className={live ? "price-badge live" : "price-badge"}>
+                            {Number.isFinite(live) ? live.toFixed(2) : "--"}
+                          </span>
+                        </td>
+                        <td className="actions">
+                          <button
+                            className="buy"
+                            onClick={() => sendEntrySignal(item.instrument_id, "buy")}
+                            disabled={busy}
+                          >
+                            BUY
+                          </button>
+                          <button
+                            className="sell"
+                            onClick={() => sendEntrySignal(item.instrument_id, "sell")}
+                            disabled={busy}
+                          >
+                            SELL
+                          </button>
+                          <button
+                            className="ghost"
+                            onClick={() => removeFromWatchlist(item.instrument_id)}
+                            disabled={busy}
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
         </section>
 
-        <section className="panel">
-          <h2>Recent Signals</h2>
-          <div className="list scroll">
-            {signals.map((s) => (
-              <div key={s.id} className="signal-row">
-                <span>{s.trading_symbol}</span>
-                <b className={s.side === "buy" ? "buy-text" : "sell-text"}>
-                  {s.side}
-                </b>
+        <section className="panel wide">
+          <h2>Signals</h2>
+          <div className="signal-columns">
+            <div className="signal-column entry-col">
+              <h3>Entry Signals</h3>
+              <div className="signal-list">
+                {entrySignals.map((s) => {
+                  const exited = hasExitByEntryId.has(s.id);
+                  return (
+                    <div key={s.id} className="signal-card entry">
+                      <div>
+                        <b>#{s.id}</b> {s.trading_symbol}
+                      </div>
+                      <div className="signal-meta">
+                        <span className={s.side === "buy" ? "buy-text" : "sell-text"}>
+                          {s.side}
+                        </span>
+                        <button
+                          className="exit-btn"
+                          disabled={busy || exited}
+                          onClick={() => sendExitSignal(s)}
+                        >
+                          {exited ? "Exited" : "Exit"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
+            </div>
+            <div className="signal-column exit-col">
+              <h3>Exit Signals</h3>
+              <div className="signal-list">
+                {exitSignals.map((s) => (
+                  <div key={s.id} className="signal-card exit">
+                    <div>
+                      <b>#{s.id}</b> {s.trading_symbol}
+                    </div>
+                    <div className="signal-meta">
+                      <span className={s.side === "buy" ? "buy-text" : "sell-text"}>
+                        {s.side}
+                      </span>
+                      <span className="depends-on">
+                        from #{s.depends_on_signal_id || "-"}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </section>
       </main>
