@@ -30,6 +30,7 @@ export default function App() {
   const [watchlistDescription, setWatchlistDescription] = useState("");
   const [livePrices, setLivePrices] = useState({});
   const [indexPrices, setIndexPrices] = useState({});
+  const [previousClose, setPreviousClose] = useState({});
   const [pricePulse, setPricePulse] = useState({});
   const [priceDirection, setPriceDirection] = useState({});
   const [toast, setToast] = useState("");
@@ -167,6 +168,13 @@ export default function App() {
             ...prev,
             [instrumentId]: nextPrice
           }));
+          const nextPreviousClose = Number(data.previous_close);
+          if (Number.isFinite(nextPreviousClose) && nextPreviousClose > 0) {
+            setPreviousClose((prev) => ({
+              ...prev,
+              [instrumentId]: nextPreviousClose
+            }));
+          }
           if (INDEX_KEYS.includes(instrumentId)) {
             setIndexPrices((prev) => ({
               ...prev,
@@ -191,6 +199,7 @@ export default function App() {
       subscribedRef.current = new Set();
       lastPriceRef.current = {};
       desiredInstrumentIdsRef.current = [];
+      setPreviousClose({});
     };
   }, []);
 
@@ -362,12 +371,29 @@ export default function App() {
         </div>
       </header>
       <section className="index-strip">
-        {INDEX_KEYS.map((indexKey) => (
-          <div key={indexKey} className="index-card">
-            <span>{indexKey.replace("NSE_INDEX|", "")}</span>
-            <b>{Number.isFinite(indexPrices[indexKey]) ? indexPrices[indexKey].toFixed(2) : "--"}</b>
-          </div>
-        ))}
+        {INDEX_KEYS.map((indexKey) => {
+          const live = indexPrices[indexKey];
+          const prev = previousClose[indexKey];
+          const diff = Number.isFinite(live) && Number.isFinite(prev) ? live - prev : null;
+          const pct =
+            Number.isFinite(diff) && Number.isFinite(prev) && prev !== 0
+              ? (diff / prev) * 100
+              : null;
+          const tone = Number.isFinite(diff) ? (diff > 0 ? "up" : diff < 0 ? "down" : "flat") : "flat";
+          return (
+            <div key={indexKey} className={`index-card ${tone}`}>
+              <div className="index-name">{indexKey.replace("NSE_INDEX|", "")}</div>
+              <div className="index-value">
+                {Number.isFinite(live) ? live.toFixed(2) : "--"}
+              </div>
+              <div className="index-meta">
+                {Number.isFinite(diff) && Number.isFinite(pct)
+                  ? `${diff >= 0 ? "+" : ""}${diff.toFixed(2)} (${diff >= 0 ? "+" : ""}${pct.toFixed(2)}%)`
+                  : "--"}
+              </div>
+            </div>
+          );
+        })}
       </section>
 
       <main className="grid">
@@ -460,11 +486,22 @@ export default function App() {
                 </thead>
                 <tbody>
                   {(selectedWatchlist.items || []).map((item) => {
+                    const instrumentId = String(item.instrument_id);
+                    const upstoxKey = String(item.upstox_instrument_key || "");
                     const live = Number.isFinite(livePrices[String(item.instrument_id)])
-                      ? livePrices[String(item.instrument_id)]
-                      : livePrices[String(item.upstox_instrument_key || "")];
-                    const pulse = pricePulse[String(item.instrument_id)] || 0;
-                    const direction = priceDirection[String(item.instrument_id)];
+                      ? livePrices[instrumentId]
+                      : livePrices[upstoxKey];
+                    const prevClose = Number.isFinite(previousClose[instrumentId])
+                      ? previousClose[instrumentId]
+                      : previousClose[upstoxKey];
+                    const dayDiff = Number.isFinite(live) && Number.isFinite(prevClose)
+                      ? live - prevClose
+                      : null;
+                    const dayPct = Number.isFinite(dayDiff) && Number.isFinite(prevClose) && prevClose !== 0
+                      ? (dayDiff / prevClose) * 100
+                      : null;
+                    const pulse = pricePulse[instrumentId] || pricePulse[upstoxKey] || 0;
+                    const direction = priceDirection[instrumentId] || priceDirection[upstoxKey];
                     const hasLive = Number.isFinite(live);
                     const badgeClass = [
                       "price-badge",
@@ -481,6 +518,13 @@ export default function App() {
                           <span key={`${item.instrument_id}-${pulse}`} className={badgeClass}>
                             {Number.isFinite(live) ? live.toFixed(2) : "--"}
                           </span>
+                          {Number.isFinite(dayDiff) && Number.isFinite(dayPct) && (
+                            <div className={dayDiff >= 0 ? "price-meta up" : "price-meta down"}>
+                              {dayDiff >= 0 ? "+" : ""}
+                              {dayDiff.toFixed(2)} ({dayDiff >= 0 ? "+" : ""}
+                              {dayPct.toFixed(2)}%)
+                            </div>
+                          )}
                         </td>
                         <td className="actions">
                           <button

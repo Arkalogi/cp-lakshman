@@ -220,6 +220,8 @@ class UpstoxProvider:
         if self.api_ws and self.api_ws.connected:
             return
         self.api_ws = websocket.create_connection(self.api_ws_url, timeout=5)
+        # API WS can stay idle for long periods; avoid treating idle recv as failure.
+        self.api_ws.settimeout(30)
         self.api_ws.send(
             json.dumps({"action": "register_feed", "source": "upstox_pricefeed"})
         )
@@ -242,8 +244,16 @@ class UpstoxProvider:
         while self.api_ws and self.api_ws.connected:
             try:
                 raw = self.api_ws.recv()
+            except websocket.WebSocketTimeoutException:
+                # No control message from API WS within timeout window: keep listening.
+                continue
+            except websocket.WebSocketConnectionClosedException:
+                logger.warning("API websocket listener detected closed connection.")
+                self.api_ws = None
+                break
             except Exception:
                 logger.exception("API websocket listener error")
+                self.api_ws = None
                 break
             if not raw:
                 continue
@@ -397,6 +407,7 @@ class UpstoxProvider:
                                     "action": "publish",
                                     "instrument_id": instrument_key,
                                     "price": ltpc.get("ltp"),
+                                    "previous_close": ltpc.get("cp"),
                                     "ts": ltpc.get("ltt"),
                                     "source": "upstox",
                                 }

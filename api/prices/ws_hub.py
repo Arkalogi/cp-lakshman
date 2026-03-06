@@ -1,9 +1,10 @@
 import asyncio
+import math
 from typing import Any
 
 from fastapi import WebSocket
 
-from api.data.local import PRICE_CACHE
+from api.data.local import PRICE_CACHE, PREV_CLOSE_CACHE
 from api.data import utils as data_utils
 
 
@@ -52,11 +53,13 @@ class PriceWebSocketHub:
             # Send snapshot for already available prices.
             for instrument_id in instrument_ids:
                 if instrument_id in PRICE_CACHE:
+                    previous_close = PREV_CLOSE_CACHE.get(instrument_id)
                     await websocket.send_json(
                         {
                             "type": "price",
                             "instrument_id": instrument_id,
                             "price": PRICE_CACHE[instrument_id],
+                            "previous_close": previous_close,
                             "source": "cache",
                         }
                     )
@@ -104,14 +107,26 @@ class PriceWebSocketHub:
                     {"type": "error", "message": "price must be numeric"}
                 )
                 return
+            previous_close = None
+            raw_previous_close = message.get("previous_close")
+            if raw_previous_close is not None:
+                try:
+                    previous_close = float(raw_previous_close)
+                    if not math.isfinite(previous_close):
+                        previous_close = None
+                except (TypeError, ValueError):
+                    previous_close = None
 
             publish_ids = self._expand_publish_ids(instrument_id)
             for publish_id in publish_ids:
                 PRICE_CACHE[publish_id] = price_value
+                if previous_close is not None:
+                    PREV_CLOSE_CACHE[publish_id] = previous_close
                 tick = {
                     "type": "price",
                     "instrument_id": publish_id,
                     "price": price_value,
+                    "previous_close": PREV_CLOSE_CACHE.get(publish_id),
                     "ts": message.get("ts"),
                     "source": message.get("source"),
                 }
