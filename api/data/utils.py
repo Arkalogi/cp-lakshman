@@ -3,6 +3,7 @@ import json
 import os
 import logging
 import requests
+from datetime import datetime
 from typing import Any, Iterable, List, Optional
 from sqlalchemy import insert, select
 from api.data.local import (
@@ -12,6 +13,9 @@ from api.data.local import (
     PRICE_CACHE,
     TOKEN_MAP,
     UNDERLYING_INDEX,
+    XTS_TO_UPSTOX_KEY,
+    UPSTOX_TO_XTS_ID,
+    UPSTOX_TOKEN_BY_XTS_ID,
 )
 from api.data.models import Instrument
 from api.data import models, database
@@ -21,6 +25,151 @@ from api.commons.utils import generate_trading_symbol
 from api.config import Config
 
 logger = logging.getLogger(__name__)
+
+
+def _as_date_int_from_epoch_ms(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    try:
+        ts_seconds = float(value) / 1000.0
+    except (TypeError, ValueError):
+        return None
+    return datetime.utcfromtimestamp(ts_seconds).strftime("%Y%m%d")
+
+
+def _normalize_instrument_type(value: Any) -> Optional[str]:
+    raw = str(value or "").strip().upper()
+    if raw in {"CE", "PE", "OPT"}:
+        return "OPT"
+    if raw in {"FUT", "FUTIDX", "FUTSTK"}:
+        return "FUT"
+    if raw in {"EQ", "EQUITY"}:
+        return "EQ"
+    return None
+
+
+def _safe_float_str(value: Any) -> str:
+    try:
+        return f"{float(value):.6f}"
+    except (TypeError, ValueError):
+        return "0.000000"
+
+
+def _build_upstox_match_key(row: dict[str, Any]) -> Optional[tuple]:
+    exchange = str(row.get("exchange") or "").strip().upper()
+    instrument_type = _normalize_instrument_type(row.get("instrument_type"))
+    if not exchange or not instrument_type:
+        return None
+    underlying = str(
+        row.get("underlying_symbol")
+        or row.get("asset_symbol")
+        or row.get("name")
+        or row.get("trading_symbol")
+        or ""
+    ).strip().upper()
+    if not underlying:
+        return None
+    option_type = str(row.get("instrument_type") or "").strip().upper()
+    if option_type not in {"CE", "PE"}:
+        option_type = ""
+    expiry = _as_date_int_from_epoch_ms(row.get("expiry")) if instrument_type != "EQ" else ""
+    strike = _safe_float_str(row.get("strike_price")) if instrument_type == "OPT" else "0.000000"
+    return (exchange, underlying, instrument_type, expiry or "", strike, option_type)
+
+
+def _build_xts_match_key(instrument: Instrument) -> Optional[tuple]:
+    exchange = (instrument.exchange.name if instrument.exchange else "").replace("CM", "").replace("FO", "")
+    exchange = exchange.strip().upper()
+    instrument_type = (
+        instrument.instrument_type.name.upper() if instrument.instrument_type else None
+    )
+    if not exchange or not instrument_type:
+        return None
+    underlying = str(instrument.underlying or "").strip().upper()
+    if not underlying:
+        return None
+    option_type = (
+        instrument.option_type.name.upper() if instrument.option_type else ""
+    )
+    expiry = str(instrument.expiry or "") if instrument_type != "EQ" else ""
+    strike = _safe_float_str(instrument.strike) if instrument_type == "OPT" else "0.000000"
+    return (exchange, underlying, instrument_type, expiry, strike, option_type)
+
+
+def load_upstox_master_data_from_file() -> list[dict[str, Any]]:
+    file_path = Config.UPSTOX_MASTER_DATA_FILE_PATH
+    if not os.path.isabs(file_path):
+        file_path = os.path.join(os.getcwd(), file_path)
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(file_path)
+    with open(file_path, "r", encoding="utf-8") as file:
+        payload = json.load(file)
+    if not isinstance(payload, list):
+        raise ValueError("Upstox master data must be a JSON array")
+    return payload
+
+
+def _refresh_xts_upstox_map(instruments: List[Instrument]) -> None:
+    XTS_TO_UPSTOX_KEY.clear()
+    UPSTOX_TO_XTS_ID.clear()
+    UPSTOX_TOKEN_BY_XTS_ID.clear()
+
+    try:
+        upstox_rows = load_upstox_master_data_from_file()
+    except FileNotFoundError:
+        logger.warning(
+            "Upstox master data file not found at %s; skipping XTS<->Upstox mapping.",
+            Config.UPSTOX_MASTER_DATA_FILE_PATH,
+        )
+        return
+    except Exception as exc:
+        logger.exception("Failed to load Upstox master data for mapping: %s", exc)
+        return
+
+    upstox_by_key: dict[tuple, dict[str, Any]] = {}
+    upstox_by_exchange_token: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in upstox_rows:
+        if not isinstance(row, dict):
+            continue
+        exchange = str(row.get("exchange") or "").strip().upper()
+        exchange_token = str(row.get("exchange_token") or "").strip()
+        if exchange and exchange_token and (exchange, exchange_token) not in upstox_by_exchange_token:
+            upstox_by_exchange_token[(exchange, exchange_token)] = row
+        key = _build_upstox_match_key(row)
+        instrument_key = str(row.get("instrument_key") or "").strip()
+        if key is None or not instrument_key or key in upstox_by_key:
+            continue
+        upstox_by_key[key] = row
+
+    mapped = 0
+    for instrument in instruments:
+        exchange = (instrument.exchange.name if instrument.exchange else "").replace("CM", "").replace("FO", "")
+        exchange = exchange.strip().upper()
+        xts_id = str(instrument.instrument_id)
+        upstox = upstox_by_exchange_token.get((exchange, xts_id))
+        if not upstox:
+            xts_key = _build_xts_match_key(instrument)
+            if xts_key is None:
+                continue
+            upstox = upstox_by_key.get(xts_key)
+        if not upstox:
+            continue
+        upstox_key = str(upstox.get("instrument_key") or "").strip()
+        upstox_token = str(upstox.get("exchange_token") or "").strip()
+        if not upstox_key:
+            continue
+        XTS_TO_UPSTOX_KEY[xts_id] = upstox_key
+        UPSTOX_TO_XTS_ID[upstox_key] = xts_id
+        if upstox_token:
+            UPSTOX_TOKEN_BY_XTS_ID[xts_id] = upstox_token
+        mapped += 1
+
+    logger.info(
+        "XTS<->Upstox mapping ready: mapped=%d xts=%d upstox=%d",
+        mapped,
+        len(instruments),
+        len(upstox_by_key),
+    )
 
 
 def download_zerodha_master_data():
@@ -166,8 +315,9 @@ def _chunked(items: Iterable[dict], size: int) -> Iterable[List[dict]]:
 
 
 def _serialize_instrument(instrument: Instrument) -> dict[str, Any]:
+    xts_id = str(instrument.instrument_id)
     return {
-        "instrument_id": instrument.instrument_id,
+        "instrument_id": xts_id,
         "exchange": instrument.exchange.value if instrument.exchange else None,
         "trading_symbol": instrument.trading_symbol,
         "underlying": instrument.underlying,
@@ -179,6 +329,8 @@ def _serialize_instrument(instrument: Instrument) -> dict[str, Any]:
         "expiry": instrument.expiry,
         "strike": instrument.strike,
         "option_type": instrument.option_type.value if instrument.option_type else None,
+        "upstox_instrument_key": XTS_TO_UPSTOX_KEY.get(xts_id),
+        "upstox_exchange_token": UPSTOX_TOKEN_BY_XTS_ID.get(xts_id),
     }
 
 
@@ -232,6 +384,7 @@ async def _load_master_cache_from_db() -> bool:
         instruments = result.scalars().all()
     if not instruments:
         return False
+    _refresh_xts_upstox_map(instruments)
     _refresh_master_cache(instruments)
     return True
 
@@ -260,6 +413,7 @@ async def load_master_data() -> bool:
                 return loaded
         instruments = await asyncio.to_thread(parser_xts_master_data, xts_data)
         await _persist_master_data(instruments)
+        _refresh_xts_upstox_map(instruments)
         _refresh_master_cache(instruments)
         logger.info("Master data loaded from source: %d instruments", len(MASTER_DATA))
         return True
@@ -295,6 +449,14 @@ def get_master_data_count() -> int:
 
 def get_instrument_payload_by_id(instrument_id: str) -> Optional[dict[str, Any]]:
     return MASTER_DATA_SERIALIZED.get(instrument_id)
+
+
+def get_upstox_instrument_key_by_xts_id(instrument_id: str) -> Optional[str]:
+    return XTS_TO_UPSTOX_KEY.get(str(instrument_id))
+
+
+def get_xts_instrument_id_by_upstox_key(instrument_key: str) -> Optional[str]:
+    return UPSTOX_TO_XTS_ID.get(str(instrument_key))
 
 
 def search_instruments(

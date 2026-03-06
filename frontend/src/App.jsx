@@ -30,21 +30,33 @@ export default function App() {
   const [watchlistDescription, setWatchlistDescription] = useState("");
   const [livePrices, setLivePrices] = useState({});
   const [indexPrices, setIndexPrices] = useState({});
+  const [pricePulse, setPricePulse] = useState({});
+  const [priceDirection, setPriceDirection] = useState({});
   const [toast, setToast] = useState("");
   const [busy, setBusy] = useState(false);
 
   const wsRef = useRef(null);
   const subscribedRef = useRef(new Set());
+  const lastPriceRef = useRef({});
+  const desiredInstrumentIdsRef = useRef([]);
 
   const selectedWatchlist = useMemo(
     () => watchlists.find((w) => w.id === selectedWatchlistId) || null,
     [watchlists, selectedWatchlistId]
   );
 
-  const watchedInstrumentIds = useMemo(
-    () => (selectedWatchlist?.items || []).map((item) => String(item.instrument_id)),
-    [selectedWatchlist]
-  );
+  const watchedInstrumentIds = useMemo(() => {
+    const ids = new Set();
+    for (const item of selectedWatchlist?.items || []) {
+      if (item?.instrument_id !== undefined && item?.instrument_id !== null) {
+        ids.add(String(item.instrument_id));
+      }
+      if (item?.upstox_instrument_key) {
+        ids.add(String(item.upstox_instrument_key));
+      }
+    }
+    return Array.from(ids);
+  }, [selectedWatchlist]);
 
   const entrySignals = useMemo(
     () =>
@@ -130,7 +142,7 @@ export default function App() {
     wsRef.current = ws;
 
     ws.onopen = () => {
-      syncWsSubscriptions(watchedInstrumentIds);
+      syncWsSubscriptions(desiredInstrumentIdsRef.current);
     };
 
     ws.onmessage = (event) => {
@@ -138,14 +150,27 @@ export default function App() {
         const data = JSON.parse(event.data);
         if (data.type === "price" && data.instrument_id) {
           const instrumentId = String(data.instrument_id);
+          const nextPrice = Number(data.price);
+          const prevPrice = lastPriceRef.current[instrumentId];
+          if (Number.isFinite(nextPrice) && Number.isFinite(prevPrice) && nextPrice !== prevPrice) {
+            setPriceDirection((prev) => ({
+              ...prev,
+              [instrumentId]: nextPrice > prevPrice ? "up" : "down"
+            }));
+            setPricePulse((prev) => ({
+              ...prev,
+              [instrumentId]: (prev[instrumentId] || 0) + 1
+            }));
+          }
+          lastPriceRef.current[instrumentId] = nextPrice;
           setLivePrices((prev) => ({
             ...prev,
-            [instrumentId]: Number(data.price)
+            [instrumentId]: nextPrice
           }));
           if (INDEX_KEYS.includes(instrumentId)) {
             setIndexPrices((prev) => ({
               ...prev,
-              [instrumentId]: Number(data.price)
+              [instrumentId]: nextPrice
             }));
           }
         }
@@ -164,12 +189,15 @@ export default function App() {
       }
       wsRef.current = null;
       subscribedRef.current = new Set();
+      lastPriceRef.current = {};
+      desiredInstrumentIdsRef.current = [];
     };
   }, []);
 
   useEffect(() => {
+    desiredInstrumentIdsRef.current = watchedInstrumentIds;
     syncWsSubscriptions(watchedInstrumentIds);
-  }, [watchedInstrumentIds.join(",")]);
+  }, [selectedWatchlistId, watchedInstrumentIds.join(",")]);
 
   async function createQuickStrategy() {
     setBusy(true);
@@ -432,13 +460,25 @@ export default function App() {
                 </thead>
                 <tbody>
                   {(selectedWatchlist.items || []).map((item) => {
-                    const live = livePrices[String(item.instrument_id)];
+                    const live = Number.isFinite(livePrices[String(item.instrument_id)])
+                      ? livePrices[String(item.instrument_id)]
+                      : livePrices[String(item.upstox_instrument_key || "")];
+                    const pulse = pricePulse[String(item.instrument_id)] || 0;
+                    const direction = priceDirection[String(item.instrument_id)];
+                    const hasLive = Number.isFinite(live);
+                    const badgeClass = [
+                      "price-badge",
+                      hasLive ? "live" : "",
+                      direction ? `tick-${direction}` : ""
+                    ]
+                      .filter(Boolean)
+                      .join(" ");
                     return (
                       <tr key={item.instrument_id}>
                         <td>{item.trading_symbol}</td>
                         <td>{item.instrument_id}</td>
                         <td>
-                          <span className={live ? "price-badge live" : "price-badge"}>
+                          <span key={`${item.instrument_id}-${pulse}`} className={badgeClass}>
                             {Number.isFinite(live) ? live.toFixed(2) : "--"}
                           </span>
                         </td>

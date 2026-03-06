@@ -54,3 +54,35 @@ async def search(
         data=data,
         message="Master data search completed",
     )
+
+
+@router.get("/mapping/xts/{instrument_id}", response_model=ResponseSchema)
+async def map_xts_to_upstox(instrument_id: str):
+    upstox_key = utils.get_upstox_instrument_key_by_xts_id(instrument_id)
+    if not upstox_key:
+        return ResponseSchema(
+            status=enums.ResponseStatus.ERROR,
+            data=None,
+            message="Mapping not found for XTS instrument_id",
+        )
+    return ResponseSchema(
+        status=enums.ResponseStatus.SUCCESS,
+        data={"instrument_id": instrument_id, "upstox_instrument_key": upstox_key},
+        message="XTS to Upstox mapping fetched",
+    )
+
+
+@router.get("/mapping/upstox/{instrument_key}", response_model=ResponseSchema)
+async def map_upstox_to_xts(instrument_key: str):
+    xts_id = utils.get_xts_instrument_id_by_upstox_key(instrument_key)
+    if not xts_id:
+        return ResponseSchema(
+            status=enums.ResponseStatus.ERROR,
+            data=None,
+            message="Mapping not found for Upstox instrument_key",
+        )
+    return ResponseSchema(
+        status=enums.ResponseStatus.SUCCESS,
+        data={"upstox_instrument_key": instrument_key, "instrument_id": xts_id},
+        message="Upstox to XTS mapping fetched",
+    )

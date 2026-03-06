@@ -195,6 +195,19 @@ td {
   font-weight: 600;
 }
 
+.price-badge.tick-up {
+  color: #0b7d46;
+}
+
+.price-badge.tick-down {
+  color: #b32525;
+}
+
+.price-badge.live.tick-up,
+.price-badge.live.tick-down {
+  animation: price-pop 0.45s ease;
+}
+
 .signal-columns {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -281,6 +294,21 @@ td {
   }
   100% {
     opacity: 0;
+  }
+}
+
+@keyframes price-pop {
+  0% {
+    transform: scale(1);
+    box-shadow: none;
+  }
+  35% {
+    transform: scale(1.06);
+    box-shadow: 0 0 0 4px rgba(14, 143, 83, 0.18);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: none;
   }
 }
 
