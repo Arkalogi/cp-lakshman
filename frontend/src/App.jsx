@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
 
+const INDEX_KEYS = ["NSE_INDEX|Nifty 50", "NSE_INDEX|Nifty Bank"];
+
 const defaultUser = {
   first_name: "Trade",
   last_name: "Operator",
@@ -27,6 +29,7 @@ export default function App() {
   const [watchlistName, setWatchlistName] = useState("");
   const [watchlistDescription, setWatchlistDescription] = useState("");
   const [livePrices, setLivePrices] = useState({});
+  const [indexPrices, setIndexPrices] = useState({});
   const [toast, setToast] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -93,7 +96,7 @@ export default function App() {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
     const current = subscribedRef.current;
-    const target = new Set(nextIds.map(String));
+    const target = new Set([...INDEX_KEYS, ...nextIds.map(String)]);
     const toSubscribe = [...target].filter((id) => !current.has(id));
     const toUnsubscribe = [...current].filter((id) => !target.has(id));
 
@@ -134,10 +137,17 @@ export default function App() {
       try {
         const data = JSON.parse(event.data);
         if (data.type === "price" && data.instrument_id) {
+          const instrumentId = String(data.instrument_id);
           setLivePrices((prev) => ({
             ...prev,
-            [String(data.instrument_id)]: Number(data.price)
+            [instrumentId]: Number(data.price)
           }));
+          if (INDEX_KEYS.includes(instrumentId)) {
+            setIndexPrices((prev) => ({
+              ...prev,
+              [instrumentId]: Number(data.price)
+            }));
+          }
         }
       } catch (error) {
         setToast("Invalid websocket payload");
@@ -323,6 +333,14 @@ export default function App() {
           </button>
         </div>
       </header>
+      <section className="index-strip">
+        {INDEX_KEYS.map((indexKey) => (
+          <div key={indexKey} className="index-card">
+            <span>{indexKey.replace("NSE_INDEX|", "")}</span>
+            <b>{Number.isFinite(indexPrices[indexKey]) ? indexPrices[indexKey].toFixed(2) : "--"}</b>
+          </div>
+        ))}
+      </section>
 
       <main className="grid">
         <section className="panel">

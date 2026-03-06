@@ -35,7 +35,7 @@ class UpstoxProvider:
         self.access_token = None
         self.refresh_token = None
         self.logged_in = False
-        self.subscribed_tokens = set()
+        self.subscribed_tokens = set(["NSE_INDEX|Nifty 50", "NSE_INDEX|Nifty Bank"])
         self.api_ws = None
 
     def login(self):
@@ -157,7 +157,7 @@ class UpstoxProvider:
             payload = {
                 "guid": "536e6b23-d527-4b30-b1a6-5bb024b3b591",
                 "method": "sub",
-                "data": {"instrumentKeys": self.subscribed_tokens, "mode": "full"},
+                "data": {"instrumentKeys": list(self.subscribed_tokens), "mode": "full"},
             }
             logger.info(payload)
             self.ws.send(json.dumps(payload).encode(), opcode=2)
@@ -197,7 +197,6 @@ class UpstoxProvider:
             self._connect_api_ws()
         except Exception:
             logger.exception("Failed to connect API websocket publisher.")
-        self.subscribe_to_tokens(["NSE_INDEX|Nifty 50"])
 
     def _decode_feed_message(self, message):
         if isinstance(message, (bytes, bytearray)):
