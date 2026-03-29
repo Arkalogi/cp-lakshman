@@ -38,10 +38,20 @@ class DematApiConfigSchema(BaseModel):
         ):
             raise ValueError("ARKALOGI must use PAPER api_provider")
         if (
+            self.demat_provider == enums.DematProvider.DEMO
+            and self.api_provider != enums.ApiProvider.PAPER
+        ):
+            raise ValueError("DEMO must use PAPER api_provider")
+        if (
             self.demat_provider == enums.DematProvider.ANGELONE
             and self.api_provider != enums.ApiProvider.ANGELONE
         ):
             raise ValueError("ANGELONE must use ANGELONE api_provider")
+        if (
+            self.demat_provider == enums.DematProvider.GROW
+            and self.api_provider != enums.ApiProvider.GROW
+        ):
+            raise ValueError("GROW must use GROW api_provider")
         return self
 
 

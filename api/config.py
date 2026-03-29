@@ -16,3 +16,10 @@ class Config:
     REQUIRE_MASTER_DATA_ON_STARTUP = (
         os.getenv("REQUIRE_MASTER_DATA_ON_STARTUP", "False").lower() == "true"
     )
+    ENABLE_RMS_WORKER = os.getenv("ENABLE_RMS_WORKER", "True").lower() == "true"
+    RMS_QUEUE_BLOCK_SECONDS = int(os.getenv("RMS_QUEUE_BLOCK_SECONDS", "5"))
+    RMS_PRICE_WAIT_SECONDS = float(os.getenv("RMS_PRICE_WAIT_SECONDS", "10"))
+    RMS_PRICE_POLL_SECONDS = float(os.getenv("RMS_PRICE_POLL_SECONDS", "0.25"))
+    ENABLE_ORDER_ROUTER_WORKER = (
+        os.getenv("ENABLE_ORDER_ROUTER_WORKER", "True").lower() == "true"
+    )

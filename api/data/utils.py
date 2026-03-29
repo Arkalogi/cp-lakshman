@@ -18,7 +18,7 @@ from api.data.local import (
     UPSTOX_TOKEN_BY_XTS_ID,
 )
 from api.data.models import Instrument
-from api.data import models, database
+from api.data import models, database, red
 from api.commons.constants import ZERODHA_MASTER_DATA_URL
 from api.commons.enums import Exchange, InstrumentType, OptionType
 from api.commons.utils import generate_trading_symbol
@@ -510,4 +510,8 @@ def search_instruments(
     }
 
 async def get_current_price(instrument_id: str) -> Optional[float]:
-    return PRICE_CACHE.get(instrument_id)
+    instrument_id = str(instrument_id)
+    cached = PRICE_CACHE.get(instrument_id)
+    if cached is not None:
+        return cached
+    return await red.get_live_price(instrument_id)

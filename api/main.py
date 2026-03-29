@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -13,6 +14,8 @@ from api.watchlists.routes import router as watchlists_router
 from api.prices.routes import router as prices_router
 from api.data.utils import load_master_data, get_master_data_count
 from api.config import Config
+from api.order_routing import order_router_worker
+from api.rms import rms_worker
 
 
 logging.basicConfig(
@@ -55,6 +58,28 @@ async def load_master_data_at_startup():
         if Config.REQUIRE_MASTER_DATA_ON_STARTUP:
             raise RuntimeError(msg)
         logger.warning("%s; continuing startup because REQUIRE_MASTER_DATA_ON_STARTUP=false", msg)
+    if Config.ENABLE_RMS_WORKER:
+        app.state.rms_task = asyncio.create_task(rms_worker.run_forever())
+    if Config.ENABLE_ORDER_ROUTER_WORKER:
+        app.state.order_router_task = asyncio.create_task(order_router_worker.run_forever())
+
+
+@app.on_event("shutdown")
+async def shutdown_background_tasks():
+    task = getattr(app.state, "rms_task", None)
+    if task:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+    task = getattr(app.state, "order_router_task", None)
+    if task:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
 
 @app.get("/health")

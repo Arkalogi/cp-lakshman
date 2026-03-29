@@ -6,12 +6,14 @@ from fastapi import WebSocket
 
 from api.data.local import PRICE_CACHE, PREV_CLOSE_CACHE
 from api.data import utils as data_utils
+from api.data import red
 
 
 class PriceWebSocketHub:
     def __init__(self) -> None:
         self._subscriptions: dict[WebSocket, set[str]] = {}
         self._feed_connections: set[WebSocket] = set()
+        self._runtime_subscriptions: dict[str, int] = {}
         self._lock = asyncio.Lock()
 
     async def connect(self, websocket: WebSocket) -> None:
@@ -122,6 +124,11 @@ class PriceWebSocketHub:
                 PRICE_CACHE[publish_id] = price_value
                 if previous_close is not None:
                     PREV_CLOSE_CACHE[publish_id] = previous_close
+                await red.set_live_price(
+                    publish_id,
+                    price_value,
+                    previous_close=PREV_CLOSE_CACHE.get(publish_id),
+                )
                 tick = {
                     "type": "price",
                     "instrument_id": publish_id,
@@ -134,6 +141,28 @@ class PriceWebSocketHub:
             return
 
         await websocket.send_json({"type": "error", "message": "unknown action"})
+
+    async def subscribe_runtime(self, instrument_id: str) -> None:
+        instrument_id = str(instrument_id).strip()
+        if not instrument_id:
+            return
+        async with self._lock:
+            self._runtime_subscriptions[instrument_id] = (
+                self._runtime_subscriptions.get(instrument_id, 0) + 1
+            )
+        await self._sync_feed_subscriptions()
+
+    async def unsubscribe_runtime(self, instrument_id: str) -> None:
+        instrument_id = str(instrument_id).strip()
+        if not instrument_id:
+            return
+        async with self._lock:
+            current = self._runtime_subscriptions.get(instrument_id, 0)
+            if current <= 1:
+                self._runtime_subscriptions.pop(instrument_id, None)
+            else:
+                self._runtime_subscriptions[instrument_id] = current - 1
+        await self._sync_feed_subscriptions()
 
     async def _broadcast(self, instrument_id: str, tick: dict[str, Any]) -> None:
         async with self._lock:
@@ -158,6 +187,7 @@ class PriceWebSocketHub:
                 if ws in self._feed_connections:
                     continue
                 target.update(instrument_ids)
+            target.update(self._runtime_subscriptions.keys())
             feed_connections = list(self._feed_connections)
         feed_instrument_ids = sorted(
             {

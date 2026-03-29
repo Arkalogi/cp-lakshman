@@ -12,6 +12,7 @@ class ApiProvider(Enum):
     SHOONYA = "shoonya"
     ANGELONE = "angelone"
     PAPER = "paper"
+    GROW = "grow"
 
 
 class DematProvider(Enum):
@@ -20,6 +21,8 @@ class DematProvider(Enum):
     FINVASIA = "finvasia"
     ANGELONE = "angelone"
     ARKALOGI = "arkalogi"
+    GROW = "grow"
+    DEMO = "demo"
 
 
 class OrderSide(Enum):

@@ -113,6 +113,7 @@ class Order(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     tag = Column(String(50), index=True)
+    parent_tag = Column(String(50), index=True, nullable=True)
     instrument_id = Column(String(12), nullable=False)
     trading_symbol = Column(String(50), nullable=False)
     side = Column(Enum(OrderSide), nullable=False)
