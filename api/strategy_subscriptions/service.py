@@ -15,6 +15,9 @@ async def add_strategy_subscription_data(subscription_data: StrategySubscription
         new_subscription = models.StrategySubscription(
             subscriber_id=subscription_data.subscriber_id,
             target_id=subscription_data.target_id,
+            total_fund=subscription_data.total_fund,
+            fund_allocation_precentage=subscription_data.fund_allocation_precentage,
+            fund_deployed=subscription_data.fund_deployed,
         )
         db.add(new_subscription)
         await db.commit()

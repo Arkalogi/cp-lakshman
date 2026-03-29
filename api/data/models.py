@@ -92,6 +92,7 @@ class StrategySubscription(Base):
     target_id = Column(Integer, ForeignKey("strategies.id", ondelete="CASCADE"))
     total_fund = Column(Float, nullable=False, default=0)
     fund_allocation_precentage = Column(Float, nullable=False, default=1)
+    fund_deployed = Column(Float, nullable=False, default=0)
 
     subscriber = relationship(
         "DematApi",
