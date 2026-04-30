@@ -12,6 +12,7 @@ from api.signals.routes import router as signals_router
 from api.master_data.routes import router as master_data_router
 from api.watchlists.routes import router as watchlists_router
 from api.prices.routes import router as prices_router
+from api.user_ips.routes import router as user_ips_router
 from api.data.utils import load_master_data, get_master_data_count
 from api.config import Config
 from api.order_routing import order_router_worker
@@ -46,6 +47,7 @@ app.include_router(signals_router)
 app.include_router(master_data_router)
 app.include_router(watchlists_router)
 app.include_router(prices_router)
+app.include_router(user_ips_router)
 
 
 @app.on_event("startup")

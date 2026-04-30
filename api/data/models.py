@@ -46,6 +46,26 @@ class User(Base):
     strategies = relationship(
         "Strategy", back_populates="user", foreign_keys="Strategy.user_id"
     )
+    ip_address = relationship(
+        "UserIpAddress",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        uselist=False,
+        foreign_keys="UserIpAddress.user_id",
+    )
+
+
+class UserIpAddress(Base):
+    __tablename__ = "user_ip_addresses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True)
+    static_ip = Column(String(45), unique=True, index=True, nullable=False)
+    private_ip = Column(String(45), unique=True, index=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    user = relationship("User", back_populates="ip_address", foreign_keys=[user_id])
 
 
 class Strategy(Base):
