@@ -1,9 +1,107 @@
 <!doctype html>
-<html lang="en">
+<html class="light" lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CopyTrade Desk</title>
+    <title>CopyTrade Desk | Admin Console</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Space+Grotesk:wght@600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "secondary-fixed": "#e3e1ec",
+              "on-tertiary-container": "#ffede6",
+              "surface-container-high": "#e7e7f3",
+              "primary-fixed": "#dbe1ff",
+              "inverse-surface": "#2e3039",
+              "error-container": "#ffdad6",
+              "surface-tint": "#0053da",
+              "secondary-fixed-dim": "#c6c5cf",
+              "on-secondary-container": "#63646c",
+              "inverse-primary": "#b4c5ff",
+              "primary": "#004bc6",
+              "on-secondary": "#ffffff",
+              "on-secondary-fixed-variant": "#46464e",
+              "surface-dim": "#d9d9e5",
+              "primary-fixed-dim": "#b4c5ff",
+              "on-tertiary": "#ffffff",
+              "on-surface-variant": "#434655",
+              "on-primary-fixed": "#00174b",
+              "on-error-container": "#93000a",
+              "surface-container-highest": "#e1e2ed",
+              "background-light": "#F4F4F5",
+              "surface-bright": "#faf8ff",
+              "on-tertiary-fixed": "#360f00",
+              "danger": "#EF4444",
+              "surface-container": "#ededf9",
+              "secondary-container": "#e3e1ec",
+              "on-primary-fixed-variant": "#003ea7",
+              "success": "#10B981",
+              "on-tertiary-fixed-variant": "#7d2d00",
+              "surface-container-lowest": "#ffffff",
+              "surface": "#FFFFFF",
+              "on-secondary-fixed": "#1a1b22",
+              "on-background": "#191b23",
+              "tertiary-fixed-dim": "#ffb596",
+              "inverse-on-surface": "#f0f0fb",
+              "border-color": "#E4E4E7",
+              "on-error": "#ffffff",
+              "tertiary-container": "#bc4800",
+              "primary-container": "#2463eb",
+              "outline": "#737686",
+              "on-primary": "#ffffff",
+              "error": "#ba1a1a",
+              "on-primary-container": "#eeefff",
+              "outline-variant": "#c3c6d7",
+              "on-surface": "#191b23",
+              "background": "#faf8ff",
+              "warning": "#F59E0B",
+              "tertiary": "#943700",
+              "secondary": "#5d5e66",
+              "tertiary-fixed": "#ffdbcd",
+              "surface-variant": "#e1e2ed",
+              "surface-container-low": "#f3f3fe"
+            },
+            borderRadius: {
+              "DEFAULT": "0.25rem",
+              "lg": "0.5rem",
+              "xl": "0.75rem",
+              "full": "9999px"
+            },
+            spacing: {
+              "container-padding": "1rem",
+              "nav-width": "240px",
+              "item-gap-sm": "0.5rem",
+              "table-row-padding": "0.75rem",
+              "filter-width": "200px",
+              "item-gap-md": "1rem"
+            },
+            fontFamily: {
+              "heading-display": ["Space Grotesk"],
+              "label-caps": ["Inter"],
+              "heading-section": ["Space Grotesk"],
+              "body-compact": ["Inter"],
+              "data-micro": ["JetBrains Mono"],
+              "body-standard": ["Inter"],
+              "data-mono": ["JetBrains Mono"]
+            },
+            fontSize: {
+              "heading-display": ["16px", { lineHeight: "1.2", letterSpacing: "-0.02em", fontWeight: "600" }],
+              "label-caps": ["10px", { lineHeight: "1", letterSpacing: "0.05em", fontWeight: "700" }],
+              "heading-section": ["12px", { lineHeight: "1", letterSpacing: "0.1em", fontWeight: "700" }],
+              "body-compact": ["12px", { lineHeight: "1.2", fontWeight: "500" }],
+              "data-micro": ["8px", { lineHeight: "1", fontWeight: "700" }],
+              "body-standard": ["14px", { lineHeight: "1.5", fontWeight: "400" }],
+              "data-mono": ["12px", { lineHeight: "1", letterSpacing: "0", fontWeight: "500" }]
+            }
+          }
+        }
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

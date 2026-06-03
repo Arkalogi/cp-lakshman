@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Light Command | Global Telemetry</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&amp;family=Space+Grotesk:wght@600;700&amp;family=JetBrains+Mono:wght@500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        /* Custom scrollbar for data-heavy containers */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c3c6d7;
+            border-radius: 0px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #737686;
+        }
+        .data-grid-bg {
+            background-image: radial-gradient(#e4e4e7 0.5px, transparent 0.5px);
+            background-size: 16px 16px;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "secondary-fixed": "#e3e1ec",
+                      "on-tertiary-container": "#ffede6",
+                      "surface-container-high": "#e7e7f3",
+                      "primary-fixed": "#dbe1ff",
+                      "inverse-surface": "#2e3039",
+                      "error-container": "#ffdad6",
+                      "surface-tint": "#0053da",
+                      "secondary-fixed-dim": "#c6c5cf",
+                      "on-secondary-container": "#63646c",
+                      "inverse-primary": "#b4c5ff",
+                      "primary": "#004bc6",
+                      "on-secondary": "#ffffff",
+                      "on-secondary-fixed-variant": "#46464e",
+                      "surface-dim": "#d9d9e5",
+                      "primary-fixed-dim": "#b4c5ff",
+                      "on-tertiary": "#ffffff",
+                      "on-surface-variant": "#434655",
+                      "on-primary-fixed": "#00174b",
+                      "on-error-container": "#93000a",
+                      "surface-container-highest": "#e1e2ed",
+                      "background-light": "#F4F4F5",
+                      "surface-bright": "#faf8ff",
+                      "on-tertiary-fixed": "#360f00",
+                      "danger": "#EF4444",
+                      "surface-container": "#ededf9",
+                      "secondary-container": "#e3e1ec",
+                      "on-primary-fixed-variant": "#003ea7",
+                      "success": "#10B981",
+                      "on-tertiary-fixed-variant": "#7d2d00",
+                      "surface-container-lowest": "#ffffff",
+                      "surface": "#FFFFFF",
+                      "on-secondary-fixed": "#1a1b22",
+                      "on-background": "#191b23",
+                      "tertiary-fixed-dim": "#ffb596",
+                      "inverse-on-surface": "#f0f0fb",
+                      "border-color": "#E4E4E7",
+                      "on-error": "#ffffff",
+                      "tertiary-container": "#bc4800",
+                      "primary-container": "#2463eb",
+                      "outline": "#737686",
+                      "on-primary": "#ffffff",
+                      "error": "#ba1a1a",
+                      "on-primary-container": "#eeefff",
+                      "outline-variant": "#c3c6d7",
+                      "on-surface": "#191b23",
+                      "background": "#faf8ff",
+                      "warning": "#F59E0B",
+                      "tertiary": "#943700",
+                      "secondary": "#5d5e66",
+                      "tertiary-fixed": "#ffdbcd",
+                      "surface-variant": "#e1e2ed",
+                      "surface-container-low": "#f3f3fe"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "container-padding": "1rem",
+                      "nav-width": "240px",
+                      "item-gap-sm": "0.5rem",
+                      "table-row-padding": "0.75rem",
+                      "filter-width": "200px",
+                      "item-gap-md": "1rem"
+              },
+              "fontFamily": {
+                      "heading-display": ["Space Grotesk"],
+                      "label-caps": ["Inter"],
+                      "heading-section": ["Space Grotesk"],
+                      "body-compact": ["Inter"],
+                      "data-micro": ["JetBrains Mono"],
+                      "body-standard": ["Inter"],
+                      "data-mono": ["JetBrains Mono"]
+              },
+              "fontSize": {
+                      "heading-display": ["16px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                      "label-caps": ["10px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                      "heading-section": ["12px", {"lineHeight": "1", "letterSpacing": "0.1em", "fontWeight": "700"}],
+                      "body-compact": ["12px", {"lineHeight": "1.2", "fontWeight": "500"}],
+                      "data-micro": ["8px", {"lineHeight": "1", "fontWeight": "700"}],
+                      "body-standard": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                      "data-mono": ["12px", {"lineHeight": "1", "letterSpacing": "0", "fontWeight": "500"}]
+              }
+            },
+          },
+        }
+      </script>
+</head>
+<body class="bg-background text-on-surface font-body-standard selection:bg-primary-container selection:text-on-primary-container">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-[240px] z-50 bg-surface border-r border-border-color flex flex-col py-4">
+<div class="px-6 mb-8">
+<h1 class="font-heading-display text-heading-display font-bold text-primary uppercase tracking-tighter">Light Command</h1>
+<p class="font-body-compact text-body-compact text-outline">Admin Console v2.4</p>
+</div>
+<nav class="flex-grow">
+<!-- Active Tab: Dashboard -->
+<div class="flex items-center px-6 py-3 bg-surface-container text-primary border-l-2 border-primary font-bold cursor-pointer group transition-colors duration-100">
+<span class="material-symbols-outlined mr-3" data-icon="dashboard">dashboard</span>
+<span class="font-label-caps text-label-caps">DASHBOARD</span>
+</div>
+<div class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-low cursor-pointer transition-colors duration-100">
+<span class="material-symbols-outlined mr-3" data-icon="query_stats">query_stats</span>
+<span class="font-label-caps text-label-caps uppercase">Master Traders</span>
+</div>
+<div class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-low cursor-pointer transition-colors duration-100">
+<span class="material-symbols-outlined mr-3" data-icon="gpp_maybe">gpp_maybe</span>
+<span class="font-label-caps text-label-caps uppercase">Risk</span>
+</div>
+<div class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-low cursor-pointer transition-colors duration-100">
+<span class="material-symbols-outlined mr-3" data-icon="group">group</span>
+<span class="font-label-caps text-label-caps uppercase">Users</span>
+</div>
+<div class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-low cursor-pointer transition-colors duration-100">
+<span class="material-symbols-outlined mr-3" data-icon="settings">settings</span>
+<span class="font-label-caps text-label-caps uppercase">Settings</span>
+</div>
+</nav>
+<div class="px-6 mt-auto space-y-2 border-t border-border-color pt-4">
+<div class="flex items-center py-2 text-on-surface-variant hover:text-primary cursor-pointer transition-all">
+<span class="material-symbols-outlined mr-3 text-[18px]" data-icon="help">help</span>
+<span class="font-body-compact text-body-compact">Help Center</span>
+</div>
+<div class="flex items-center py-2 text-on-surface-variant hover:text-error cursor-pointer transition-all">
+<span class="material-symbols-outlined mr-3 text-[18px]" data-icon="logout">logout</span>
+<span class="font-body-compact text-body-compact">Sign Out</span>
+</div>
+</div>
+</aside>
+<!-- TopNavBar -->
+<header class="fixed top-0 right-0 left-[240px] z-40 h-14 bg-surface border-b border-border-color flex items-center justify-between px-item-gap-md">
+<div class="flex items-center gap-4">
+<h2 class="font-heading-section text-heading-section uppercase text-on-surface">Global Telemetry</h2>
+<div class="relative group">
+<span class="absolute inset-y-0 left-3 flex items-center text-outline">
+<span class="material-symbols-outlined text-[18px]" data-icon="search">search</span>
+</span>
+<input class="pl-10 pr-4 py-1.5 bg-surface-container-low border border-outline-variant focus:border-primary focus:ring-0 text-data-mono font-data-mono w-64 text-[12px]" placeholder="Search Markets..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 px-3 py-1 bg-success/10 border border-success/20">
+<span class="w-1.5 h-1.5 rounded-full bg-success animate-pulse"></span>
+<span class="font-data-mono text-data-mono text-success">SYSTEM_ONLINE: 99.9%</span>
+</div>
+<div class="flex items-center gap-3">
+<button class="material-symbols-outlined p-2 text-on-surface-variant hover:text-primary transition-colors active:scale-95" data-icon="notifications">notifications</button>
+<button class="material-symbols-outlined p-2 text-on-surface-variant hover:text-primary transition-colors active:scale-95" data-icon="history">history</button>
+<div class="h-8 w-8 rounded-full border border-outline-variant overflow-hidden cursor-pointer">
+<img alt="User Profile" data-alt="A professional headshot of a senior financial data analyst in a sharp, modern office environment. The lighting is crisp and cool-toned, emphasizing high-tech surroundings. The image style is realistic and corporate with a shallow depth of field, focusing on a character projecting authority and precision in a light-mode aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDCPXT5WDqRxbTXJTssTpA7p9eiFwoUly86HCd377mVFEXziSu8hNDfsWAY3KV-DgawVEkKeT5ZGjGNg3iG3JwBHRB_tdGjyzLo1sGidDRgX1Vpowk-Tn-WvfSKWetgHiGaPsuQpJ0o3Nf-mChvC0j-UW88FY0_Rq4zMkOF-ztaAciOJClRXQoaOy7rNxtL2w27rAId0sz1A_xTFFXYrEX9kTasDNIz3DrbTzGu_BBJNFfVCzb4p8uNX-wR4e8e686reqRle2uNUxp5"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="ml-[240px] pt-14 min-h-screen data-grid-bg">
+<div class="p-6">
+<!-- 3-Column Masonry Layout -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
+<!-- COLUMN 1: Vital Stats -->
+<div class="space-y-6">
+<!-- Global AUM Card -->
+<div class="bg-surface border border-border-color p-5 relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-3">
+<span class="material-symbols-outlined text-primary/20 text-4xl group-hover:scale-110 transition-transform" data-icon="account_balance_wallet">account_balance_wallet</span>
+</div>
+<div class="relative z-10">
+<span class="font-label-caps text-label-caps text-outline uppercase">GLOBAL AUM</span>
+<div class="flex items-baseline gap-2 mt-2">
+<span class="font-data-mono text-[32px] font-bold text-on-surface">$42,504,281</span>
+<span class="font-data-mono text-success text-[14px] flex items-center">+2.4% <span class="material-symbols-outlined text-[14px]" data-icon="trending_up">trending_up</span></span>
+</div>
+<div class="mt-4 pt-4 border-t border-border-color flex justify-between">
+<div class="space-y-1">
+<p class="font-label-caps text-[9px] text-outline uppercase">Settled</p>
+<p class="font-data-mono text-data-mono">$38.1M</p>
+</div>
+<div class="space-y-1">
+<p class="font-label-caps text-[9px] text-outline uppercase">In-Flight</p>
+<p class="font-data-mono text-data-mono">$4.4M</p>
+</div>
+<div class="space-y-1">
+<p class="font-label-caps text-[9px] text-outline uppercase">Utilized</p>
+<p class="font-data-mono text-data-mono">89.2%</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Market Indices Grid -->
+<div class="bg-surface border border-border-color">
+<div class="px-4 py-3 border-b border-border-color flex justify-between items-center bg-surface-container-lowest">
+<h3 class="font-heading-section text-heading-section uppercase">Market Pulse</h3>
+<span class="font-data-micro text-data-micro text-outline">REFRESH: 1s</span>
+</div>
+<div class="divide-y divide-border-color">
+<div class="p-4 flex justify-between items-center hover:bg-surface-container-low transition-colors">
+<div>
+<p class="font-data-mono text-data-mono font-bold">NIFTY 50</p>
+<p class="font-label-caps text-[9px] text-outline uppercase">NSE India</p>
+</div>
+<div class="text-right">
+<p class="font-data-mono text-data-mono">22,123.45</p>
+<p class="font-data-mono text-[10px] text-success">+0.85%</p>
+</div>
+</div>
+<div class="p-4 flex justify-between items-center hover:bg-surface-container-low transition-colors">
+<div>
+<p class="font-data-mono text-data-mono font-bold">SENSEX</p>
+<p class="font-label-caps text-[9px] text-outline uppercase">BSE India</p>
+</div>
+<div class="text-right">
+<p class="font-data-mono text-data-mono">72,891.10</p>
+<p class="font-data-mono text-[10px] text-danger">-0.12%</p>
+</div>
+</div>
+<div class="p-4 flex justify-between items-center hover:bg-surface-container-low transition-colors">
+<div>
+<p class="font-data-mono text-data-mono font-bold">BANK NIFTY</p>
+<p class="font-label-caps text-[9px] text-outline uppercase">Sectoral Index</p>
+</div>
+<div class="text-right">
+<p class="font-data-mono text-data-mono">46,512.30</p>
+<p class="font-data-mono text-[10px] text-success">+1.42%</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- COLUMN 2: Performance & Network -->
+<div class="space-y-6"><div class="bg-surface border border-border-color">
+<div class="px-4 py-3 border-b border-border-color bg-surface-container-lowest">
+<h3 class="font-heading-section text-heading-section uppercase">Quick Signal Entry</h3>
+</div>
+<div class="p-4 space-y-4">
+<div class="grid grid-cols-3 gap-3">
+<div class="space-y-1">
+<label class="font-label-caps text-[9px] text-outline uppercase">Asset/Ticker</label>
+<input class="w-full bg-surface-container-low border border-outline-variant focus:border-primary focus:ring-0 font-data-mono text-data-mono px-2 py-1.5" placeholder="RELIANCE" type="text"/>
+</div>
+<div class="space-y-1">
+<label class="font-label-caps text-[9px] text-outline uppercase">Quantity</label>
+<input class="w-full bg-surface-container-low border border-outline-variant focus:border-primary focus:ring-0 font-data-mono text-data-mono px-2 py-1.5" placeholder="100" type="text"/>
+</div>
+<div class="space-y-1">
+<label class="font-label-caps text-[9px] text-outline uppercase">Entry Price</label>
+<input class="w-full bg-surface-container-low border border-outline-variant focus:border-primary focus:ring-0 font-data-mono text-data-mono px-2 py-1.5" placeholder="2942.10" type="text"/>
+</div>
+</div>
+<button class="w-full py-2 bg-primary text-white font-label-caps text-label-caps uppercase hover:bg-primary-container transition-colors active:scale-95">Broadcast Entry Signal</button>
+</div>
+</div>
+<!-- Active Connections Chart -->
+<div class="bg-surface border border-border-color p-5">
+<div class="flex justify-between items-start mb-6">
+<div>
+<h3 class="font-heading-section text-heading-section uppercase">Network Telemetry</h3>
+<p class="font-label-caps text-[9px] text-outline uppercase">Direct Exchange API Links</p>
+</div>
+<div class="text-right">
+<p class="font-data-mono text-[18px] font-bold text-primary">1,402</p>
+<p class="font-label-caps text-[9px] text-success uppercase">Active Conn</p>
+</div>
+</div>
+<!-- Pseudo-Chart Placeholder -->
+<div class="h-48 w-full flex items-end gap-1 px-1 border-b border-l border-border-color">
+<div class="flex-1 bg-primary/20 hover:bg-primary transition-all cursor-pointer h-[40%]" title="08:00"></div>
+<div class="flex-1 bg-primary/20 hover:bg-primary transition-all cursor-pointer h-[55%]" title="09:00"></div>
+<div class="flex-1 bg-primary/20 hover:bg-primary transition-all cursor-pointer h-[75%]" title="10:00"></div>
+<div class="flex-1 bg-primary/20 hover:bg-primary transition-all cursor-pointer h-[90%]" title="11:00"></div>
+<div class="flex-1 bg-primary/20 hover:bg-primary transition-all cursor-pointer h-[85%]" title="12:00"></div>
+<div class="flex-1 bg-primary/20 hover:bg-primary transition-all cursor-pointer h-[60%]" title="13:00"></div>
+<div class="flex-1 bg-primary/20 hover:bg-primary transition-all cursor-pointer h-[70%]" title="14:00"></div>
+<div class="flex-1 bg-primary/20 hover:bg-primary transition-all cursor-pointer h-[95%]" title="15:00"></div>
+<div class="flex-1 bg-primary hover:bg-primary transition-all cursor-pointer h-[100%]" title="16:00"></div>
+</div>
+<div class="flex justify-between mt-2">
+<span class="font-data-micro text-data-micro text-outline">08:00</span>
+<span class="font-data-micro text-data-micro text-outline">12:00</span>
+<span class="font-data-micro text-data-micro text-outline">16:00</span>
+</div>
+</div>
+<!-- Risk Metrics -->
+<div class="bg-surface border border-border-color">
+<div class="px-4 py-3 border-b border-border-color bg-surface-container-lowest">
+<h3 class="font-heading-section text-heading-section uppercase">Risk Exposure</h3>
+</div>
+<div class="p-4 space-y-4">
+<div>
+<div class="flex justify-between mb-1">
+<span class="font-label-caps text-[10px] text-on-surface uppercase">Margin Utilization</span>
+<span class="font-data-mono text-data-mono">82%</span>
+</div>
+<div class="w-full bg-surface-container h-1.5 overflow-hidden">
+<div class="bg-warning h-full w-[82%]"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between mb-1">
+<span class="font-label-caps text-[10px] text-on-surface uppercase">Counterparty Risk</span>
+<span class="font-data-mono text-data-mono">14%</span>
+</div>
+<div class="w-full bg-surface-container h-1.5 overflow-hidden">
+<div class="bg-success h-full w-[14%]"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between mb-1">
+<span class="font-label-caps text-[10px] text-on-surface uppercase">System Latency</span>
+<span class="font-data-mono text-data-mono">0.4ms</span>
+</div>
+<div class="w-full bg-surface-container h-1.5 overflow-hidden">
+<div class="bg-primary h-full w-[40%]"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- COLUMN 3: Live Execution Stream -->
+<div class="bg-surface border border-border-color flex flex-col h-[700px]">
+<div class="px-4 py-3 border-b border-border-color flex items-center justify-between bg-surface-container-lowest sticky top-0 z-10">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[18px]" data-icon="terminal">terminal</span>
+<h3 class="font-heading-section text-heading-section uppercase">Live Execution Feed</h3>
+</div>
+<span class="px-1.5 py-0.5 bg-danger text-white font-data-micro text-[8px] animate-pulse">LIVE</span>
+</div>
+<div class="flex-grow overflow-y-auto font-data-mono text-[11px] leading-tight divide-y divide-border-color/50" id="execution-feed"><div class="p-3 hover:bg-surface-container-low flex justify-between gap-4 transition-all duration-300 opacity-0 -translate-y-2">
+<div class="flex gap-2">
+<span class="text-outline">09:30:10.427</span>
+<span class="text-danger font-bold">SELL</span>
+<span class="text-on-surface">TCS</span>
+</div>
+<div class="text-right">
+<span class="text-on-surface-variant">1752.16</span>
+<span class="text-outline ml-2">x1682</span>
+</div>
+</div>
+<!-- Initial items for static rendering -->
+<div class="p-3 hover:bg-surface-container-low flex justify-between gap-4">
+<div class="flex gap-2">
+<span class="text-outline">16:42:01.245</span>
+<span class="text-success font-bold">BUY</span>
+<span class="text-on-surface">RELIANCE</span>
+</div>
+<div class="text-right">
+<span class="text-on-surface-variant">2,942.10</span>
+<span class="text-outline ml-2">x100</span>
+</div>
+</div>
+<div class="p-3 hover:bg-surface-container-low flex justify-between gap-4">
+<div class="flex gap-2">
+<span class="text-outline">16:42:01.012</span>
+<span class="text-danger font-bold">SELL</span>
+<span class="text-on-surface">HDFCBANK</span>
+</div>
+<div class="text-right">
+<span class="text-on-surface-variant">1,421.50</span>
+<span class="text-outline ml-2">x500</span>
+</div>
+</div>
+<div class="p-3 hover:bg-surface-container-low flex justify-between gap-4">
+<div class="flex gap-2">
+<span class="text-outline">16:42:00.892</span>
+<span class="text-success font-bold">BUY</span>
+<span class="text-on-surface">TCS</span>
+</div>
+<div class="text-right">
+<span class="text-on-surface-variant">3,982.00</span>
+<span class="text-outline ml-2">x25</span>
+</div>
+</div>
+<div class="p-3 hover:bg-surface-container-low flex justify-between gap-4">
+<div class="flex gap-2">
+<span class="text-outline">16:42:00.651</span>
+<span class="text-danger font-bold">SELL</span>
+<span class="text-on-surface">INFY</span>
+</div>
+<div class="text-right">
+<span class="text-on-surface-variant">1,612.35</span>
+<span class="text-outline ml-2">x1200</span>
+</div>
+</div>
+<div class="p-3 hover:bg-surface-container-low flex justify-between gap-4">
+<div class="flex gap-2">
+<span class="text-outline">16:42:00.441</span>
+<span class="text-success font-bold">BUY</span>
+<span class="text-on-surface">ICICIBANK</span>
+</div>
+<div class="text-right">
+<span class="text-on-surface-variant">1,085.20</span>
+<span class="text-outline ml-2">x450</span>
+</div>
+</div>
+<div class="p-3 hover:bg-surface-container-low flex justify-between gap-4">
+<div class="flex gap-2">
+<span class="text-outline">16:42:00.120</span>
+<span class="text-danger font-bold">SELL</span>
+<span class="text-on-surface">ADANIENT</span>
+</div>
+<div class="text-right">
+<span class="text-on-surface-variant">3,211.00</span>
+<span class="text-outline ml-2">x80</span>
+</div>
+</div>
+</div>
+<div class="p-3 border-t border-border-color bg-surface-container-lowest">
+<button class="w-full py-2 bg-primary text-white font-label-caps text-label-caps uppercase hover:bg-primary-container transition-colors active:scale-95">PAUSE STREAM</button>
+</div>
+</div>
+</div>
+<!-- Footer Taskbar -->
+<div class="mt-6 bg-surface border border-border-color">
+<div class="px-4 py-2 border-b border-border-color flex justify-between items-center bg-surface-container-lowest">
+<h3 class="font-heading-section text-heading-section uppercase">System Log</h3>
+<div class="flex gap-2">
+<span class="w-2 h-2 rounded-full bg-success"></span>
+<span class="font-data-micro text-data-micro text-outline uppercase">Logging Live</span>
+</div>
+</div>
+<div class="h-32 overflow-y-auto p-3 font-data-mono text-[11px] leading-tight text-on-surface-variant space-y-1 bg-surface-container-lowest">
+<div class="flex gap-3">
+<span class="text-outline">16:45:02</span>
+<span class="text-primary">|</span>
+<span class="font-bold">STRATEGY_SYNC</span>
+<span class="text-primary">|</span>
+<span class="text-success">Success</span>
+</div>
+<div class="flex gap-3">
+<span class="text-outline">16:44:58</span>
+<span class="text-primary">|</span>
+<span class="font-bold">API_GATEWAY</span>
+<span class="text-primary">|</span>
+<span>Latency: 42ms</span>
+</div>
+<div class="flex gap-3">
+<span class="text-outline">16:44:55</span>
+<span class="text-primary">|</span>
+<span class="font-bold">WS_CONNECTION</span>
+<span class="text-primary">|</span>
+<span>Handshake verified with SRV: DEL-SEC-04</span>
+</div>
+<div class="flex gap-3">
+<span class="text-outline">16:44:50</span>
+<span class="text-primary">|</span>
+<span class="font-bold">CORE_ENGINE</span>
+<span class="text-primary">|</span>
+<span>Risk assessment loop (0.1ms)</span>
+</div>
+<div class="flex gap-3">
+<span class="text-outline">16:44:42</span>
+<span class="text-primary">|</span>
+<span class="font-bold">DATA_STREAM</span>
+<span class="text-primary">|</span>
+<span>NIFTY_50 update received from NSE_LOCAL_LINK</span>
+</div>
+</div>
+</div><footer class="mt-8 pt-6 border-t border-border-color flex justify-between items-center text-outline font-data-micro">
+<div class="flex gap-6">
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[12px]" data-icon="lock">lock</span> ENCRYPTED AES-256</span>
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[12px]" data-icon="schedule">schedule</span> UPTIME: 421:12:05</span>
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[12px]" data-icon="dns">dns</span> SRV: DEL-SEC-04</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-success"></span>
+<span>PRIMARY GATEWAY ACTIVE</span>
+</div>
+</footer>
+</div>
+</main>
+<script>
+        // Micro-interaction: Simulate live execution feed updates
+        const feed = document.getElementById('execution-feed');
+        const stocks = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK', 'ICICIBANK', 'AXISBANK', 'SBIN', 'BHARTIARTL', 'KOTAKBANK', 'LT'];
+        
+        function addExecution() {
+            const now = new Date();
+            const timestamp = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}.${now.getMilliseconds().toString().padStart(3, '0')}`;
+            const isBuy = Math.random() > 0.5;
+            const stock = stocks[Math.floor(Math.random() * stocks.length)];
+            const price = (Math.random() * 5000 + 100).toFixed(2);
+            const qty = Math.floor(Math.random() * 2000 + 1);
+
+            const div = document.createElement('div');
+            div.className = 'p-3 hover:bg-surface-container-low flex justify-between gap-4 transition-all duration-300 opacity-0 -translate-y-2';
+            div.innerHTML = `
+                <div class="flex gap-2">
+                    <span class="text-outline">${timestamp}</span>
+                    <span class="${isBuy ? 'text-success' : 'text-danger'} font-bold">${isBuy ? 'BUY' : 'SELL'}</span>
+                    <span class="text-on-surface">${stock}</span>
+                </div>
+                <div class="text-right">
+                    <span class="text-on-surface-variant">${price}</span>
+                    <span class="text-outline ml-2">x${qty}</span>
+                </div>
+            `;
+            
+            feed.prepend(div);
+            
+            // Trigger animation
+            requestAnimationFrame(() => {
+                div.classList.remove('opacity-0', '-translate-y-2');
+            });
+
+            // Limit feed size
+            if (feed.children.length > 50) {
+                feed.lastElementChild.remove();
+            }
+        }
+
+        setInterval(addExecution, 1500);
+    </script>
+</body></html>

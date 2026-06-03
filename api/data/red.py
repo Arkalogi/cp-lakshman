@@ -3,6 +3,8 @@ import redis
 import redis.asyncio as redis_async
 
 _REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+_REDIS_SOCKET_CONNECT_TIMEOUT = float(os.getenv("REDIS_SOCKET_CONNECT_TIMEOUT", "5"))
+_REDIS_SOCKET_TIMEOUT_VALUE = os.getenv("REDIS_SOCKET_TIMEOUT", "")
 ORDER_SIGNAL_LIST = os.getenv("ORDER_SIGNAL_LIST", "order_signals")
 ORDER_ROUTER_LIST = os.getenv("ORDER_ROUTER_LIST", "order_router")
 LIVE_PRICE_HASH = os.getenv("LIVE_PRICE_HASH", "live_prices")
@@ -12,17 +14,34 @@ _redis_sync = None
 _redis_async = None
 
 
+def _socket_timeout() -> float | None:
+    if not _REDIS_SOCKET_TIMEOUT_VALUE:
+        return None
+    if _REDIS_SOCKET_TIMEOUT_VALUE.strip().lower() in {"none", "null"}:
+        return None
+    return float(_REDIS_SOCKET_TIMEOUT_VALUE)
+
+
+def _redis_options() -> dict:
+    return {
+        "decode_responses": False,
+        "socket_connect_timeout": _REDIS_SOCKET_CONNECT_TIMEOUT,
+        "socket_timeout": _socket_timeout(),
+        "health_check_interval": 30,
+    }
+
+
 def get_redis():
     global _redis_sync
     if _redis_sync is None:
-        _redis_sync = redis.Redis.from_url(_REDIS_URL, decode_responses=False)
+        _redis_sync = redis.Redis.from_url(_REDIS_URL, **_redis_options())
     return _redis_sync
 
 
 def get_async_redis():
     global _redis_async
     if _redis_async is None:
-        _redis_async = redis_async.from_url(_REDIS_URL, decode_responses=False)
+        _redis_async = redis_async.from_url(_REDIS_URL, **_redis_options())
     return _redis_async
 
 
