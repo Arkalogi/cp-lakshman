@@ -119,6 +119,7 @@ export default function App() {
   const [strategies,        setStrategies]        = useState([]);
   const [signals,           setSignals]           = useState([]);
   const [users,             setUsers]             = useState([]);
+  const [subscriptions,     setSubscriptions]     = useState([]);
 
   // ── Watchlist UI ──
   const [selectedWatchlistId,   setSelectedWatchlistId]   = useState(null);
@@ -136,6 +137,8 @@ export default function App() {
   // ── User management UI ──
   const [userSearch,     setUserSearch]     = useState("");
   const [expandedUserId, setExpandedUserId] = useState(null);
+  const [profileForm,    setProfileForm]    = useState(null);
+  const [subscriptionForm, setSubscriptionForm] = useState(null);
 
   // IP Whitelist — one record per user: { id, static_ip, private_ip } or null
   const [userIpData,  setUserIpData]  = useState({}); // { [userId]: record | null | "loading" }
@@ -204,14 +207,16 @@ export default function App() {
 
   // ── Data loading ──────────────────────────────────────────────────────────────
   async function loadAll() {
-    const [wl, st, sg, us, da] = await Promise.all([
-      api.listWatchlists(), api.listStrategies(), api.listSignals(), api.listUsers(), api.listDematApis()
+    const [wl, st, sg, us, da, ss] = await Promise.all([
+      api.listWatchlists(), api.listStrategies(), api.listSignals(), api.listUsers(), api.listDematApis(),
+      api.listStrategySubscriptions()
     ]);
     setWatchlists(wl || []);
     setStrategies(st || []);
     setSignals(sg || []);
     setUsers(us || []);
     setDematApis(Array.isArray(da) ? da : []);
+    setSubscriptions(Array.isArray(ss) ? ss : []);
     if (!selectedWatchlistId && wl?.length)   setSelectedWatchlistId(wl[0].id);
     if (!selectedStrategyId  && st?.length)   setSelectedStrategyId(String(st[0].id));
   }
@@ -425,6 +430,20 @@ export default function App() {
     finally { setBusy(false); }
   }
 
+  async function deleteSelectedWatchlist() {
+    if (!selectedWatchlistId) return;
+    if (!window.confirm(`Delete watchlist "${selectedWatchlist?.name || selectedWatchlistId}"?`)) return;
+    setBusy(true);
+    try {
+      await api.deleteWatchlist(selectedWatchlistId);
+      const remaining = watchlists.filter(w => w.id !== selectedWatchlistId);
+      setWatchlists(remaining);
+      setSelectedWatchlistId(remaining[0]?.id || null);
+      setToast("Watchlist deleted.");
+    } catch (e) { setToast(e.message); }
+    finally { setBusy(false); }
+  }
+
   async function searchInstruments() {
     if (!searchText.trim()) { setSearchResults([]); return; }
     try {
@@ -514,9 +533,68 @@ export default function App() {
     try {
       await api.deleteUser(userId);
       setUsers(prev => prev.filter(u => u.id !== userId));
+      const removedApiIds = new Set(dematApis.filter(d => d.user_id === userId).map(d => d.id));
       setDematApis(prev => prev.filter(d => d.user_id !== userId));
+      setSubscriptions(prev => prev.filter(s => !removedApiIds.has(s.subscriber_id)));
       if (expandedUserId === userId) setExpandedUserId(null);
       setToast("User removed.");
+    } catch (e) { setToast(e.message); }
+    finally { setBusy(false); }
+  }
+
+  async function saveUserProfile() {
+    if (!profileForm) return;
+    setBusy(true);
+    try {
+      const updated = await api.updateUser(profileForm.id, {
+        first_name: profileForm.first_name.trim(),
+        last_name: profileForm.last_name.trim(),
+        username: profileForm.username.trim(),
+        email: profileForm.email.trim(),
+        phone: profileForm.phone.trim(),
+        is_active: profileForm.is_active,
+      });
+      setUsers(prev => prev.map(u => u.id === updated.id ? updated : u));
+      setProfileForm(updated);
+      setToast("User profile updated.");
+    } catch (e) { setToast(e.message); }
+    finally { setBusy(false); }
+  }
+
+  async function saveStrategySubscription() {
+    if (!subscriptionForm) return;
+    if (!subscriptionForm.subscriber_id || !subscriptionForm.target_id) {
+      setToast("Select a broker API and strategy."); return;
+    }
+    setBusy(true);
+    try {
+      const body = {
+        subscriber_id: Number(subscriptionForm.subscriber_id),
+        target_id: Number(subscriptionForm.target_id),
+        total_fund: Number(subscriptionForm.total_fund || 0),
+        fund_allocation_precentage: Number(subscriptionForm.allocation_percent || 0) / 100,
+        fund_deployed: Number(subscriptionForm.fund_deployed || 0),
+      };
+      let result;
+      if (subscriptionForm.id) {
+        result = await api.updateStrategySubscription(subscriptionForm.id, body);
+        setSubscriptions(prev => prev.map(s => s.id === result.id ? result : s));
+      } else {
+        result = await api.createStrategySubscription(body);
+        setSubscriptions(prev => [result, ...prev]);
+      }
+      setSubscriptionForm(null);
+      setToast("Strategy subscription saved.");
+    } catch (e) { setToast(e.message); }
+    finally { setBusy(false); }
+  }
+
+  async function removeStrategySubscription(subscriptionId) {
+    setBusy(true);
+    try {
+      await api.deleteStrategySubscription(subscriptionId);
+      setSubscriptions(prev => prev.filter(s => s.id !== subscriptionId));
+      setToast("Strategy subscription removed.");
     } catch (e) { setToast(e.message); }
     finally { setBusy(false); }
   }
@@ -615,6 +693,9 @@ export default function App() {
   function toggleExpandUser(userId) {
     if (expandedUserId === userId) { setExpandedUserId(null); return; }
     setExpandedUserId(userId);
+    const user = users.find(u => u.id === userId);
+    if (user) setProfileForm({ ...user });
+    setSubscriptionForm(null);
     if (userIpData[userId] === undefined) loadUserIp(userId);
   }
 
@@ -836,7 +917,21 @@ export default function App() {
                 <div className="lg:col-span-2">
                   <Card
                     title={selectedWatchlist ? `${selectedWatchlist.name} — Live Prices` : "Select a Watchlist"}
-                    action={<span className="font-data-micro text-data-micro text-outline uppercase">{selectedWatchlist?.items?.length || 0} instruments</span>}
+                    action={
+                      <div className="flex items-center gap-3">
+                        <span className="font-data-micro text-data-micro text-outline uppercase">{selectedWatchlist?.items?.length || 0} instruments</span>
+                        {selectedWatchlist && (
+                          <button
+                            onClick={deleteSelectedWatchlist}
+                            disabled={busy}
+                            title="Delete watchlist"
+                            className="material-symbols-outlined text-[16px] text-outline hover:text-danger transition-colors disabled:opacity-40"
+                          >
+                            delete
+                          </button>
+                        )}
+                      </div>
+                    }
                     noPad
                   >
                     {!selectedWatchlist
@@ -956,13 +1051,15 @@ export default function App() {
                           })
                           .map(u => {
                             const userDematApis = dematApis.filter(d => d.user_id === u.id);
+                            const userApiIds = new Set(userDematApis.map(d => d.id));
+                            const userSubscriptions = subscriptions.filter(s => userApiIds.has(s.subscriber_id));
                             const ipRecord = userIpData[u.id];
                             return (
                               <>
                                 {/* Main user row */}
-                                <tr key={u.id} className="border-b border-border-color hover:bg-surface-container-low transition-colors">
+                                <tr key={u.id} onClick={() => toggleExpandUser(u.id)} className="border-b border-border-color hover:bg-surface-container-low transition-colors cursor-pointer">
                                   <td className="py-2.5 px-3 w-8">
-                                    <button onClick={() => toggleExpandUser(u.id)}
+                                    <button onClick={(e) => { e.stopPropagation(); toggleExpandUser(u.id); }}
                                       className="material-symbols-outlined text-[16px] text-outline hover:text-primary transition-colors">
                                       {expandedUserId === u.id ? "expand_less" : "expand_more"}
                                     </button>
@@ -977,7 +1074,7 @@ export default function App() {
                                     </span>
                                   </td>
                                   <td className="py-2.5 px-3">
-                                    <button onClick={() => removeUser(u.id)} disabled={busy}
+                                    <button onClick={(e) => { e.stopPropagation(); removeUser(u.id); }} disabled={busy}
                                       className="material-symbols-outlined text-[16px] text-outline hover:text-danger transition-colors">
                                       delete
                                     </button>
@@ -988,7 +1085,37 @@ export default function App() {
                                 {expandedUserId === u.id && (
                                   <tr key={`${u.id}-exp`} className="bg-surface-container-lowest border-b border-border-color">
                                     <td colSpan={7} className="px-4 py-5">
-                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+
+                                        {/* User profile */}
+                                        <div>
+                                          <div className="flex items-center justify-between mb-3">
+                                            <p className="font-label-caps text-[9px] text-primary uppercase flex items-center gap-1">
+                                              <span className="material-symbols-outlined text-[12px]">person</span> Profile
+                                            </p>
+                                          </div>
+                                          {profileForm?.id === u.id && (
+                                            <div className="space-y-2">
+                                              {[
+                                                { label: "First Name", field: "first_name", type: "text" },
+                                                { label: "Last Name", field: "last_name", type: "text" },
+                                                { label: "Username", field: "username", type: "text" },
+                                                { label: "Email", field: "email", type: "email" },
+                                                { label: "Phone", field: "phone", type: "text" },
+                                              ].map(({ label, field, type }) => (
+                                                <div key={field}>
+                                                  <label className="font-label-caps text-[9px] text-outline uppercase block mb-1">{label}</label>
+                                                  <StitchInput type={type} value={profileForm[field] || ""} onChange={e => setProfileForm(f => ({ ...f, [field]: e.target.value }))} />
+                                                </div>
+                                              ))}
+                                              <label className="flex items-center gap-2 font-label-caps text-[9px] text-outline uppercase cursor-pointer">
+                                                <input type="checkbox" checked={profileForm.is_active !== false} onChange={e => setProfileForm(f => ({ ...f, is_active: e.target.checked }))} />
+                                                Active user
+                                              </label>
+                                              <StitchBtn onClick={saveUserProfile} disabled={busy} className="w-full">Save Profile</StitchBtn>
+                                            </div>
+                                          )}
+                                        </div>
 
                                         {/* ── Broker API credentials (DematApi) ── */}
                                         <div>
@@ -1120,6 +1247,102 @@ export default function App() {
                                               <StitchBtn onClick={() => startEditIp(u.id)} variant="ghost" className="w-full">+ Set IP Whitelist</StitchBtn>
                                             </div>
                                           )}
+                                        </div>
+
+                                        {/* Strategy subscriptions and fund allocation */}
+                                        <div>
+                                          <div className="flex items-center justify-between mb-3">
+                                            <p className="font-label-caps text-[9px] text-primary uppercase flex items-center gap-1">
+                                              <span className="material-symbols-outlined text-[12px]">account_tree</span> Strategy Subscriptions
+                                            </p>
+                                            <StitchBtn
+                                              variant="ghost"
+                                              className="text-[9px] py-1 px-2"
+                                              disabled={userDematApis.length === 0}
+                                              onClick={() => setSubscriptionForm({
+                                                userId: u.id,
+                                                id: null,
+                                                subscriber_id: userDematApis[0]?.id || "",
+                                                target_id: strategies[0]?.id || "",
+                                                total_fund: "",
+                                                allocation_percent: "100",
+                                                fund_deployed: "",
+                                              })}
+                                            >
+                                              + Add
+                                            </StitchBtn>
+                                          </div>
+
+                                          {userDematApis.length === 0 && (
+                                            <p className="font-data-mono text-data-mono text-outline mb-2">Add a broker API before subscribing.</p>
+                                          )}
+
+                                          {subscriptionForm?.userId === u.id && (
+                                            <div className="bg-surface border border-border-color p-3 mb-3 space-y-2">
+                                              <div>
+                                                <label className="font-label-caps text-[9px] text-outline uppercase block mb-1">Broker API *</label>
+                                                <select value={subscriptionForm.subscriber_id} onChange={e => setSubscriptionForm(f => ({ ...f, subscriber_id: e.target.value }))}
+                                                  className="w-full bg-surface-container-low border border-outline-variant font-data-mono text-[11px] px-2 py-1.5 outline-none focus:border-primary">
+                                                  {userDematApis.map(d => <option key={d.id} value={d.id}>{d.config?.demat_provider || "Broker"} #{d.id}</option>)}
+                                                </select>
+                                              </div>
+                                              <div>
+                                                <label className="font-label-caps text-[9px] text-outline uppercase block mb-1">Strategy *</label>
+                                                <select value={subscriptionForm.target_id} onChange={e => setSubscriptionForm(f => ({ ...f, target_id: e.target.value }))}
+                                                  className="w-full bg-surface-container-low border border-outline-variant font-data-mono text-[11px] px-2 py-1.5 outline-none focus:border-primary">
+                                                  {strategies.map(s => <option key={s.id} value={s.id}>{s.name} (#{s.id})</option>)}
+                                                </select>
+                                              </div>
+                                              {[
+                                                { label: "Total Fund", field: "total_fund" },
+                                                { label: "Allocation %", field: "allocation_percent" },
+                                                { label: "Fund Deployed", field: "fund_deployed" },
+                                              ].map(({ label, field }) => (
+                                                <div key={field}>
+                                                  <label className="font-label-caps text-[9px] text-outline uppercase block mb-1">{label}</label>
+                                                  <StitchInput type="number" value={subscriptionForm[field]} onChange={e => setSubscriptionForm(f => ({ ...f, [field]: e.target.value }))} placeholder="0" />
+                                                </div>
+                                              ))}
+                                              <div className="flex gap-2">
+                                                <StitchBtn onClick={saveStrategySubscription} disabled={busy} className="flex-1">Save</StitchBtn>
+                                                <StitchBtn onClick={() => setSubscriptionForm(null)} variant="ghost" className="flex-1">Cancel</StitchBtn>
+                                              </div>
+                                            </div>
+                                          )}
+
+                                          {userSubscriptions.length === 0 && !subscriptionForm
+                                            ? <p className="font-data-mono text-data-mono text-outline">No strategy subscriptions.</p>
+                                            : userSubscriptions.map(s => {
+                                              const strategy = strategies.find(st => st.id === s.target_id);
+                                              const broker = userDematApis.find(d => d.id === s.subscriber_id);
+                                              const allocation = Number(s.fund_allocation_precentage || 0);
+                                              const allocationPercent = allocation <= 1 ? allocation * 100 : allocation;
+                                              return (
+                                                <div key={s.id} className="border border-border-color p-3 mb-2 group">
+                                                  <div className="flex justify-between gap-2">
+                                                    <div>
+                                                      <p className="font-data-mono text-data-mono font-bold">{strategy?.name || `Strategy #${s.target_id}`}</p>
+                                                      <p className="font-label-caps text-[9px] text-outline capitalize">{broker?.config?.demat_provider || "Broker"} #{s.subscriber_id}</p>
+                                                      <p className="font-data-mono text-[10px] text-outline mt-1">Fund {Number(s.total_fund || 0).toFixed(2)} · Allocation {allocationPercent.toFixed(0)}%</p>
+                                                    </div>
+                                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                      <button onClick={() => setSubscriptionForm({
+                                                        userId: u.id,
+                                                        id: s.id,
+                                                        subscriber_id: s.subscriber_id,
+                                                        target_id: s.target_id,
+                                                        total_fund: s.total_fund,
+                                                        allocation_percent: allocationPercent,
+                                                        fund_deployed: s.fund_deployed,
+                                                      })} className="material-symbols-outlined text-[14px] text-outline hover:text-primary transition-colors">edit</button>
+                                                      <button onClick={() => removeStrategySubscription(s.id)} disabled={busy}
+                                                        className="material-symbols-outlined text-[14px] text-outline hover:text-danger transition-colors">delete</button>
+                                                    </div>
+                                                  </div>
+                                                </div>
+                                              );
+                                            })
+                                          }
                                         </div>
                                       </div>
                                     </td>

@@ -44,6 +44,9 @@ Production stack behavior:
   - `INTERNAL_POSTBACK_TOKEN`
 - Startup strictness for master data is controlled by:
   - `REQUIRE_MASTER_DATA_ON_STARTUP` (`False` for local, `True` for production by default)
+- Upstox master data is refreshed from the Upstox CDN on API startup when:
+  - `DOWNLOAD_UPSTOX_MASTER_DATA=True`
+  - If the download fails, the API continues using the existing `complete.json` file.
 - DB URL and Redis URL are injected by compose:
   - `DATABASE_URL=mysql+aiomysql://...@mysql:3306/...`
   - `REDIS_URL=redis://redis:6379/0`

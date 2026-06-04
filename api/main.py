@@ -13,7 +13,7 @@ from api.master_data.routes import router as master_data_router
 from api.watchlists.routes import router as watchlists_router
 from api.prices.routes import router as prices_router
 from api.user_ips.routes import router as user_ips_router
-from api.data.utils import load_master_data, get_master_data_count
+from api.data.utils import load_master_data, get_master_data_count, reload_upstox_master_data
 from api.config import Config
 from api.order_routing import order_router_worker
 from api.rms import rms_worker
@@ -52,6 +52,16 @@ app.include_router(user_ips_router)
 
 @app.on_event("startup")
 async def load_master_data_at_startup():
+    if Config.DOWNLOAD_UPSTOX_MASTER_DATA:
+        try:
+            result = await reload_upstox_master_data()
+            logger.info("Upstox master data refreshed at startup: %s", result)
+        except Exception:
+            logger.exception(
+                "Failed to refresh Upstox master data at startup; "
+                "continuing with the existing local file"
+            )
+
     loaded = await load_master_data()
     count = get_master_data_count()
     logger.info("Master data ready: loaded=%s count=%s", loaded, count)

@@ -18,6 +18,8 @@ export const api = {
   listWatchlists: () => request("/watchlists/"),
   createWatchlist: (body) =>
     request("/watchlists/", { method: "POST", body: JSON.stringify(body) }),
+  deleteWatchlist: (watchlistId) =>
+    request(`/watchlists/${watchlistId}`, { method: "DELETE" }),
   addWatchlistItem: (watchlistId, instrumentId) =>
     request(`/watchlists/${watchlistId}/items`, {
       method: "POST",
@@ -31,6 +33,14 @@ export const api = {
   listStrategies: () => request("/strategies/"),
   createStrategy: (body) =>
     request("/strategies/", { method: "POST", body: JSON.stringify(body) }),
+
+  listStrategySubscriptions: () => request("/strategy-subscriptions/"),
+  createStrategySubscription: (body) =>
+    request("/strategy-subscriptions/", { method: "POST", body: JSON.stringify(body) }),
+  updateStrategySubscription: (subscriptionId, body) =>
+    request(`/strategy-subscriptions/${subscriptionId}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteStrategySubscription: (subscriptionId) =>
+    request(`/strategy-subscriptions/${subscriptionId}`, { method: "DELETE" }),
 
   // ── Users  (backend only stores: first_name, last_name, username, email, phone)
   listUsers: () => request("/users/"),
