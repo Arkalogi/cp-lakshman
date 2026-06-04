@@ -1,4 +1,6 @@
 import asyncio
+import gzip
+import io
 import json
 import os
 import logging
@@ -16,6 +18,7 @@ from api.data.local import (
     XTS_TO_UPSTOX_KEY,
     UPSTOX_TO_XTS_ID,
     UPSTOX_TOKEN_BY_XTS_ID,
+    UPSTOX_INSTRUMENT_BY_KEY,
 )
 from api.data.models import Instrument
 from api.data import models, database, red
@@ -113,6 +116,7 @@ def _refresh_xts_upstox_map(instruments: List[Instrument]) -> None:
     XTS_TO_UPSTOX_KEY.clear()
     UPSTOX_TO_XTS_ID.clear()
     UPSTOX_TOKEN_BY_XTS_ID.clear()
+    UPSTOX_INSTRUMENT_BY_KEY.clear()
 
     try:
         upstox_rows = load_upstox_master_data_from_file()
@@ -140,6 +144,8 @@ def _refresh_xts_upstox_map(instruments: List[Instrument]) -> None:
         if key is None or not instrument_key or key in upstox_by_key:
             continue
         upstox_by_key[key] = row
+        # Keep composite key → upstox_key alive for runtime lookup of unmapped instruments
+        UPSTOX_INSTRUMENT_BY_KEY[key] = instrument_key
 
     mapped = 0
     for instrument in instruments:
@@ -165,11 +171,118 @@ def _refresh_xts_upstox_map(instruments: List[Instrument]) -> None:
         mapped += 1
 
     logger.info(
-        "XTS<->Upstox mapping ready: mapped=%d xts=%d upstox=%d",
+        "XTS<->Upstox mapping ready: mapped=%d xts=%d upstox=%d composite_keys=%d",
         mapped,
         len(instruments),
         len(upstox_by_key),
+        len(UPSTOX_INSTRUMENT_BY_KEY),
     )
+
+
+# ── Upstox CDN master data download ──────────────────────────────────────────
+
+# Upstox publishes their complete instrument master as a gzipped JSON at this URL.
+# It is updated daily before market open; refresh on startup + nightly.
+UPSTOX_CDN_URL = "https://assets.upstox.com/market-quote/instruments/exchange/complete.json.gz"
+
+
+def download_upstox_master_data_from_cdn(timeout: int = 60) -> list[dict[str, Any]]:
+    """
+    Download the latest Upstox instrument master from their public CDN.
+    Returns the parsed list of instrument dicts.
+    Raises on network or parse errors.
+    """
+    logger.info("Downloading Upstox instrument master from CDN: %s", UPSTOX_CDN_URL)
+    resp = requests.get(UPSTOX_CDN_URL, timeout=timeout, stream=True)
+    resp.raise_for_status()
+
+    raw = resp.content
+    # Handle both .gz compressed and plain JSON responses
+    try:
+        decompressed = gzip.decompress(raw)
+        payload = json.loads(decompressed)
+    except (gzip.BadGzipFile, OSError):
+        payload = json.loads(raw)
+
+    if not isinstance(payload, list):
+        raise ValueError(f"Unexpected Upstox CDN response format: {type(payload)}")
+
+    logger.info("Downloaded %d Upstox instruments from CDN", len(payload))
+    return payload
+
+
+def save_upstox_master_data(rows: list[dict[str, Any]]) -> None:
+    """Save downloaded Upstox instrument rows to the configured file path."""
+    file_path = Config.UPSTOX_MASTER_DATA_FILE_PATH
+    if not os.path.isabs(file_path):
+        file_path = os.path.join(os.getcwd(), file_path)
+    with open(file_path, "w", encoding="utf-8") as f:
+        json.dump(rows, f)
+    logger.info("Saved %d Upstox instruments to %s", len(rows), file_path)
+
+
+async def reload_upstox_master_data() -> dict[str, Any]:
+    """
+    Download fresh Upstox instrument master from CDN, save it, then rebuild
+    the XTS<->Upstox mapping from the currently loaded XTS instruments.
+    Returns a summary dict.
+    """
+    rows = await asyncio.to_thread(download_upstox_master_data_from_cdn)
+    await asyncio.to_thread(save_upstox_master_data, rows)
+
+    # Rebuild the composite-key lookup and XTS mappings using the new data
+    instruments = list(MASTER_DATA.values())
+    await asyncio.to_thread(_refresh_xts_upstox_map, instruments)
+
+    return {
+        "upstox_instruments_downloaded": len(rows),
+        "xts_instruments": len(instruments),
+        "mapped": len(XTS_TO_UPSTOX_KEY),
+        "composite_keys": len(UPSTOX_INSTRUMENT_BY_KEY),
+    }
+
+
+# ── Runtime Upstox key lookup for instruments not in the static map ───────────
+
+def find_upstox_key_for_xts_id(xts_id: str) -> Optional[str]:
+    """
+    Try to find the Upstox instrument_key for an XTS numeric instrument_id
+    that isn't in XTS_TO_UPSTOX_KEY (e.g. newly listed options not yet in
+    the last downloaded complete.json).
+
+    Strategy: build the composite match key from MASTER_DATA_SERIALIZED and
+    look it up in UPSTOX_INSTRUMENT_BY_KEY (which covers every row in
+    complete.json even for unmapped instruments).
+
+    Returns the Upstox key string, or None if still not found.
+    """
+    # Already mapped?
+    cached = XTS_TO_UPSTOX_KEY.get(xts_id)
+    if cached:
+        return cached
+
+    instrument = MASTER_DATA.get(xts_id)
+    if not instrument:
+        return None
+
+    composite = _build_xts_match_key(instrument)
+    if composite is None:
+        return None
+
+    upstox_key = UPSTOX_INSTRUMENT_BY_KEY.get(composite)
+    if upstox_key:
+        # Cache for next time so we don't repeat the lookup
+        XTS_TO_UPSTOX_KEY[xts_id] = upstox_key
+        UPSTOX_TO_XTS_ID[upstox_key] = xts_id
+        logger.info("Runtime mapped XTS %s → %s", xts_id, upstox_key)
+    else:
+        logger.warning(
+            "No Upstox key found for XTS %s (composite=%s). "
+            "complete.json may be stale — run POST /master-data/reload-upstox.",
+            xts_id, composite,
+        )
+
+    return upstox_key
 
 
 def download_zerodha_master_data():

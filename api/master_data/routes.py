@@ -1,9 +1,13 @@
-from fastapi import APIRouter, Query
+import logging
+
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
 from api.commons import enums
 from api.commons.schemas import ResponseSchema
 from api.data import utils
+from api.data.local import XTS_TO_UPSTOX_KEY, UPSTOX_INSTRUMENT_BY_KEY
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/master-data", tags=["Master Data"])
 
 
@@ -11,7 +15,11 @@ router = APIRouter(prefix="/master-data", tags=["Master Data"])
 async def summary():
     return ResponseSchema(
         status=enums.ResponseStatus.SUCCESS,
-        data={"count": utils.get_master_data_count()},
+        data={
+            "count": utils.get_master_data_count(),
+            "xts_upstox_mapped": len(XTS_TO_UPSTOX_KEY),
+            "upstox_composite_keys": len(UPSTOX_INSTRUMENT_BY_KEY),
+        },
         message="Master data summary fetched",
     )
 
@@ -20,16 +28,8 @@ async def summary():
 async def by_id(instrument_id: str):
     instrument = utils.get_instrument_payload_by_id(instrument_id)
     if not instrument:
-        return ResponseSchema(
-            status=enums.ResponseStatus.ERROR,
-            data=None,
-            message="Instrument not found",
-        )
-    return ResponseSchema(
-        status=enums.ResponseStatus.SUCCESS,
-        data=instrument,
-        message="Instrument fetched",
-    )
+        return ResponseSchema(status=enums.ResponseStatus.ERROR, data=None, message="Instrument not found")
+    return ResponseSchema(status=enums.ResponseStatus.SUCCESS, data=instrument, message="Instrument fetched")
 
 
 @router.get("/search", response_model=ResponseSchema)
@@ -49,20 +49,19 @@ async def search(
         limit=limit,
         offset=offset,
     )
-    return ResponseSchema(
-        status=enums.ResponseStatus.SUCCESS,
-        data=data,
-        message="Master data search completed",
-    )
+    return ResponseSchema(status=enums.ResponseStatus.SUCCESS, data=data, message="Master data search completed")
 
 
 @router.get("/mapping/xts/{instrument_id}", response_model=ResponseSchema)
 async def map_xts_to_upstox(instrument_id: str):
-    upstox_key = utils.get_upstox_instrument_key_by_xts_id(instrument_id)
+    upstox_key = (
+        utils.get_upstox_instrument_key_by_xts_id(instrument_id)
+        or utils.find_upstox_key_for_xts_id(instrument_id)
+    )
     if not upstox_key:
         return ResponseSchema(
             status=enums.ResponseStatus.ERROR,
-            data=None,
+            data={"instrument_id": instrument_id, "hint": "Run POST /master-data/reload-upstox to refresh complete.json"},
             message="Mapping not found for XTS instrument_id",
         )
     return ResponseSchema(
@@ -76,13 +75,53 @@ async def map_xts_to_upstox(instrument_id: str):
 async def map_upstox_to_xts(instrument_key: str):
     xts_id = utils.get_xts_instrument_id_by_upstox_key(instrument_key)
     if not xts_id:
-        return ResponseSchema(
-            status=enums.ResponseStatus.ERROR,
-            data=None,
-            message="Mapping not found for Upstox instrument_key",
-        )
+        return ResponseSchema(status=enums.ResponseStatus.ERROR, data=None, message="Mapping not found for Upstox instrument_key")
     return ResponseSchema(
         status=enums.ResponseStatus.SUCCESS,
         data={"upstox_instrument_key": instrument_key, "instrument_id": xts_id},
         message="Upstox to XTS mapping fetched",
     )
+
+
+@router.post("/reload-upstox", response_model=ResponseSchema)
+async def reload_upstox_master(background_tasks: BackgroundTasks):
+    """
+    Download fresh Upstox instrument master from their CDN, save it to complete.json,
+    and rebuild the XTS<->Upstox mapping in-memory.
+
+    Fixes 'no feed' for newly listed options whose strikes weren't in the stale
+    complete.json loaded at startup (e.g. NSEFO BANKNIFTY weekly options).
+
+    Runs in the background — returns immediately. Monitor logs for completion.
+    """
+    async def _do_reload():
+        try:
+            result = await utils.reload_upstox_master_data()
+            logger.info("Upstox master data reloaded: %s", result)
+        except Exception:
+            logger.exception("Failed to reload Upstox master data from CDN")
+
+    background_tasks.add_task(_do_reload)
+    return ResponseSchema(
+        status=enums.ResponseStatus.SUCCESS,
+        data={"status": "reload_started"},
+        message="Upstox master data reload started in background. Check logs for completion.",
+    )
+
+
+@router.post("/reload-upstox/sync", response_model=ResponseSchema)
+async def reload_upstox_master_sync():
+    """
+    Same as /reload-upstox but waits for completion (blocks ~30s).
+    Use when you need the updated mapping immediately.
+    """
+    try:
+        result = await utils.reload_upstox_master_data()
+        return ResponseSchema(
+            status=enums.ResponseStatus.SUCCESS,
+            data=result,
+            message="Upstox master data reloaded and mapping rebuilt.",
+        )
+    except Exception as exc:
+        logger.exception("Failed to reload Upstox master data from CDN")
+        raise HTTPException(status_code=500, detail=str(exc))

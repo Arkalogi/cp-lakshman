@@ -364,13 +364,70 @@ class UpstoxProvider:
     def _decode_feed_message(self, message):
         if isinstance(message, (bytes, bytearray)):
             proto_message = upstox_feed_parser.FeedResponse.FromString(message)
-            return upstox_json_format.MessageToDict(proto_message)
+            # including_default_value_fields=True ensures cp=0.0 is NOT silently
+            # dropped by MessageToDict. Without this, a zero previous-close is
+            # indistinguishable from a missing one, which breaks day-change maths.
+            # always_print_fields_with_no_presence=True ensures cp=0.0 is NOT
+            # silently dropped. This is the upstox_json_format equivalent of the
+            # standard protobuf library's including_default_value_fields=True.
+            return upstox_json_format.MessageToDict(
+                proto_message,
+                always_print_fields_with_no_presence=True,
+                preserving_proto_field_name=False,  # keep camelCase (fullFeed, marketFF …)
+            )
         if isinstance(message, str):
             try:
                 return json.loads(message)
             except json.JSONDecodeError:
                 return {"raw": message}
         return {"raw": str(message)}
+
+    @staticmethod
+    def _extract_ltpc(feed_value: dict):
+        """
+        Walk every known nesting path and return the first LTPC dict that
+        contains a nonzero ltp, plus the parent market-feed dict for OHLC.
+        Returns (ltpc_dict | None, market_feed_dict).
+        """
+        if not isinstance(feed_value, dict):
+            return None, {}
+
+        # Path 1 – top-level ltpc  (LTPC-only mode)
+        ltpc = feed_value.get("ltpc") or {}
+        if ltpc.get("ltp"):
+            return ltpc, {}
+
+        # Path 2 – fullFeed → marketFF (equities) or indexFF (indices)
+        full_feed   = feed_value.get("fullFeed") or {}
+        market_feed = full_feed.get("marketFF") or full_feed.get("indexFF") or {}
+        ltpc = market_feed.get("ltpc") or {}
+        if ltpc.get("ltp"):
+            return ltpc, market_feed
+
+        # Path 3 – firstLevelWithGreeks (options)
+        ltpc = (feed_value.get("firstLevelWithGreeks") or {}).get("ltpc") or {}
+        if ltpc.get("ltp"):
+            return ltpc, {}
+
+        return None, {}
+
+    @staticmethod
+    def _extract_ohlc(market_feed: dict) -> dict:
+        """
+        Extract the daily (1d) OHLC candle from marketOHLC if present.
+        Returns a dict with keys open, high, low, close, vol (all floats or None).
+        """
+        ohlc_list = (market_feed.get("marketOHLC") or {}).get("ohlc") or []
+        for entry in ohlc_list:
+            if isinstance(entry, dict) and entry.get("interval") == "1d":
+                return {
+                    "open":  entry.get("open"),
+                    "high":  entry.get("high"),
+                    "low":   entry.get("low"),
+                    "close": entry.get("close"),
+                    "vol":   entry.get("vol"),
+                }
+        return {}
 
     def on_message(self, ws, message):
         try:
@@ -385,46 +442,56 @@ class UpstoxProvider:
             return
 
         for instrument_key, feed_value in feeds.items():
-            ltpc = None
-            if isinstance(feed_value, dict):
-                ltpc = feed_value.get("ltpc")
-                if not ltpc:
-                    full_feed = feed_value.get("fullFeed", {})
-                    market_feed = (
-                        full_feed.get("marketFF") or full_feed.get("indexFF") or {}
-                    )
-                    ltpc = market_feed.get("ltpc")
-                if not ltpc:
-                    ltpc = feed_value.get("firstLevelWithGreeks", {}).get("ltpc")
+            ltpc, market_feed = self._extract_ltpc(feed_value)
+            if not ltpc:
+                logger.debug("No LTPC for %s", instrument_key)
+                continue
 
-            if ltpc:
-                try:
-                    self._connect_api_ws()
-                    if self.api_ws and self.api_ws.connected:
-                        self.api_ws.send(
-                            json.dumps(
-                                {
-                                    "action": "publish",
-                                    "instrument_id": instrument_key,
-                                    "price": ltpc.get("ltp"),
-                                    "previous_close": ltpc.get("cp"),
-                                    "ts": ltpc.get("ltt"),
-                                    "source": "upstox",
-                                }
-                            )
-                        )
-                except Exception:
-                    logger.exception(
-                        "Failed to publish tick for %s to API websocket",
-                        instrument_key,
-                    )
-                    self.api_ws = None
-                logger.info(
-                    "Tick %s ltp=%s ltt=%s cp=%s",
-                    instrument_key,
-                    ltpc.get("ltp"),
-                    ltpc.get("ltt"),
-                    ltpc.get("cp"),
+            ltp = ltpc.get("ltp")   # current price
+            cp  = ltpc.get("cp")    # previous close (Upstox field name: cp)
+            ltt = ltpc.get("ltt")   # last traded time (epoch ms)
+
+            # cp can be 0.0 for newly listed / suspended instruments — treat as missing
+            previous_close = cp if (cp and cp != 0) else None
+
+            # Calculate day change in the pricefeed so every downstream consumer
+            # (hub cache, WebSocket clients) gets authoritative values.
+            day_change     = None
+            day_change_pct = None
+            if ltp and previous_close:
+                day_change     = round(ltp - previous_close, 4)
+                day_change_pct = round((ltp - previous_close) / previous_close * 100, 4)
+
+            # Parse daily OHLC (open/high/low/vol) for richer market context
+            ohlc = self._extract_ohlc(market_feed)
+
+            publish_payload = {
+                "action":         "publish",
+                "instrument_id":  instrument_key,
+                "price":          ltp,
+                "previous_close": previous_close,
+                "day_change":     day_change,
+                "day_change_pct": day_change_pct,
+                "open":           ohlc.get("open"),
+                "high":           ohlc.get("high"),
+                "low":            ohlc.get("low"),
+                "volume":         ohlc.get("vol"),
+                "ts":             ltt,
+                "source":         "upstox",
+            }
+
+            try:
+                self._connect_api_ws()
+                if self.api_ws and self.api_ws.connected:
+                    self.api_ws.send(json.dumps(publish_payload))
+            except Exception:
+                logger.exception(
+                    "Failed to publish tick for %s to API websocket", instrument_key
                 )
-            else:
-                logger.debug("Parsed feed for %s: %s", instrument_key, feed_value)
+                self.api_ws = None
+
+            logger.info(
+                "Tick %s ltp=%s cp=%s chg=%s (%.4f%%) ts=%s",
+                instrument_key, ltp, previous_close,
+                day_change, day_change_pct or 0.0, ltt,
+            )
