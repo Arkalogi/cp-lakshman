@@ -1221,10 +1221,9 @@ export default function App() {
                     )
                   }
                 </Card>
-              </div>
 
-              {/* Right: open & closed signals */}
-              <div className="space-y-4">
+                {/* Right: open & closed signals */}
+                <div className="space-y-4">
                 <Card
                   title="Open Positions"
                   action={<span className="px-1.5 py-0.5 bg-success/10 border border-success/20 font-data-micro text-[8px] text-success uppercase">{entrySignals.filter(s => !hasExitByEntryId.has(s.id)).length} Open</span>}
