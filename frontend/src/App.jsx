@@ -207,10 +207,20 @@ export default function App() {
 
   // ── Data loading ──────────────────────────────────────────────────────────────
   async function loadAll() {
-    const [wl, st, sg, us, da, ss] = await Promise.all([
-      api.listWatchlists(), api.listStrategies(), api.listSignals(), api.listUsers(), api.listDematApis(),
-      api.listStrategySubscriptions()
-    ]);
+    const resources = [
+      ["watchlists", api.listWatchlists()],
+      ["strategies", api.listStrategies()],
+      ["signals", api.listSignals()],
+      ["users", api.listUsers()],
+      ["broker APIs", api.listDematApis()],
+      ["strategy subscriptions", api.listStrategySubscriptions()],
+    ];
+    const results = await Promise.allSettled(resources.map(([, request]) => request));
+    const value = (index, fallback) =>
+      results[index].status === "fulfilled" ? results[index].value : fallback;
+    const [wl, st, sg, us, da, ss] = [
+      value(0, []), value(1, []), value(2, []), value(3, []), value(4, []), value(5, []),
+    ];
     setWatchlists(wl || []);
     setStrategies(st || []);
     setSignals(sg || []);
@@ -219,6 +229,11 @@ export default function App() {
     setSubscriptions(Array.isArray(ss) ? ss : []);
     if (!selectedWatchlistId && wl?.length)   setSelectedWatchlistId(wl[0].id);
     if (!selectedStrategyId  && st?.length)   setSelectedStrategyId(String(st[0].id));
+
+    const failed = results
+      .map((result, index) => result.status === "rejected" ? resources[index][0] : null)
+      .filter(Boolean);
+    if (failed.length) setToast(`Could not load: ${failed.join(", ")}.`);
   }
 
   // ── WebSocket subscription sync ───────────────────────────────────────────────
